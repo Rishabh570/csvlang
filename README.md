@@ -59,6 +59,20 @@ for i, row in data {
   append row
 }
 
+<!-- Filter row and cols -->
+
+<!-- a built-in fn that removes null/empty fields -->
+
+<!-- export keyword to export the csv as json or csv -->
+
+<!-- built-ins for number and []number: add(), sub(), mul(), div(), avg(), mean([]), median([]) -->
+
+<!-- builts-in for string and []string: len(), isEmpty()
+
+<!-- csvObj.sort(orderByCol, asc/des) -->
+
+<!-- csvObj.removeDuplicateRows() -->
+
 <!-- [1/1] Delete -->
 delete row 0
 
@@ -131,3 +145,9 @@ for i, row in allRows {
 
 <!-- EXPORT -->
 1. should allow export as json, csv, txt
+
+
+
+## Notes
+
+- overwriting value of a globally defined var won't effect its value outside the fn. but the same is possible with an if-condition

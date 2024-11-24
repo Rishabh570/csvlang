@@ -27,6 +27,14 @@ func (l *Lexer) readChar() {
 	l.readPosition += 1
 }
 
+func (l *Lexer) readComment() token.Token {
+	for l.ch != '\n' && l.ch != 0 {
+		l.readChar()
+	}
+
+	return token.Token{Type: token.SINGLE_LINE_COMMENT, Literal: token.SINGLE_LINE_COMMENT}
+}
+
 func (l *Lexer) peekChar() byte {
 	if l.readPosition >= len(l.input) {
 		return 0
@@ -76,6 +84,9 @@ func (l *Lexer) NextToken() token.Token {
 	l.skipWhitespace()
 
 	switch l.ch {
+	case '#':
+		// skip to next line
+		tok = l.readComment()
 	case '=':
 		if l.peekChar() == '=' {
 			ch := l.ch

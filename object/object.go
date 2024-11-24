@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"csvlang/ast"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -109,10 +110,17 @@ func (f *Function) Inspect() string {
 	return out.String()
 }
 
+// Stores data type info about columns in a CSV
+type ColumnType struct {
+	Name     string
+	DataType ObjectType // STRING_OBJ or INTEGER_OBJ
+}
+
 // CSV object
 type CSV struct {
-	Headers []string
-	Rows    []map[string]string
+	Headers     []string
+	ColumnTypes []ColumnType
+	Rows        []map[string]string
 }
 
 func (c *CSV) Type() ObjectType { return CSV_OBJ }
@@ -155,6 +163,23 @@ func (c *CSV) Inspect() string {
 	}
 
 	return builder.String()
+}
+func (c *CSV) InferColumnTypes() {
+	if len(c.Rows) == 0 {
+		return
+	}
+
+	firstRow := c.Rows[0]
+	c.ColumnTypes = make([]ColumnType, len(c.Headers))
+
+	for i, header := range c.Headers {
+		value := firstRow[header]
+		if _, err := strconv.Atoi(value); err == nil {
+			c.ColumnTypes[i] = ColumnType{Name: header, DataType: INTEGER_OBJ}
+		} else {
+			c.ColumnTypes[i] = ColumnType{Name: header, DataType: STRING_OBJ}
+		}
+	}
 }
 
 type CSVRow struct {

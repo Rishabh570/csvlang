@@ -2,7 +2,6 @@ package repl
 
 import (
 	"bufio"
-	"csvlang/ast"
 	"csvlang/evaluator"
 	"csvlang/lexer"
 	"csvlang/object"
@@ -88,22 +87,18 @@ func StartFileAllAtOnce(path string) {
 
 	// Evaluate each statement in the program
 	for _, statement := range program.Statements {
+		fmt.Printf("🚧 evaluating program statement: %s\n", statement.String())
 		evaluated := evaluator.Eval(statement, env)
 		if evaluated != nil {
-			// Only print if it's an expression statement (like bare identifiers)
-			// or if it's a value we want to show
-			if _, ok := statement.(*ast.ExpressionStatement); ok {
-				io.WriteString(os.Stdout, evaluated.Inspect())
-				io.WriteString(os.Stdout, "\n")
+			io.WriteString(os.Stdout, evaluated.Inspect())
+			io.WriteString(os.Stdout, "\n")
+
+			// Stop further execution if an error is encountered
+			if evaluated.Type() == object.ERROR_OBJ {
+				return
 			}
 		}
 	}
-
-	// evaluated := evaluator.Eval(program, env)
-	// if evaluated != nil {
-	// 	io.WriteString(os.Stdout, evaluated.Inspect())
-	// 	io.WriteString(os.Stdout, "\n")
-	// }
 }
 
 func StartFile(path string) {

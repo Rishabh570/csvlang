@@ -36,6 +36,9 @@ const (
 	LBRACE = "{"
 	RBRACE = "}"
 
+	// Comment
+	SINGLE_LINE_COMMENT = "#"
+
 	// Keywords
 	LOAD     = "LOAD"
 	READ     = "READ"
