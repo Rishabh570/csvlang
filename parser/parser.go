@@ -102,6 +102,12 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program.Statements = []ast.Statement{}
 	for p.curToken.Type != token.EOF {
 		fmt.Printf("[ParseProgram] p.curToken.Type: %s, p.curToken.Literal: %s\n", p.curToken.Type, p.curToken.Literal)
+
+		if p.curTokenIs(token.SINGLE_LINE_COMMENT) {
+			p.nextToken()
+			continue
+		}
+
 		stmt := p.parseStatement()
 		fmt.Printf("[ParseProgram] stmt: %s\n", stmt)
 		if stmt != nil {
@@ -123,11 +129,48 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.READ:
 		fmt.Println("[parseStatement] parsing READ stmt...")
 		return p.parseReadStatement()
+	case token.APPEND:
+		return p.parseAppendStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+func (p *Parser) parseAppendStatement() *ast.AppendStatement {
+	stmt := &ast.AppendStatement{Token: p.curToken}
+	stmt.Values = []ast.Expression{}
+
+	p.nextToken() // move past 'append'
+
+	// Check if we've reached EOF or no values provided
+	if p.curTokenIs(token.EOF) {
+		p.Errors = append(p.Errors, "incomplete APPEND statement: no values provided")
+		return nil
+	}
+
+	// Parse comma-separated values
+	for !p.curTokenIs(token.EOF) && !p.curTokenIs(token.SEMICOLON) {
+		if p.curTokenIs(token.COMMA) {
+			p.nextToken()
+			continue
+		}
+
+		value := p.parseExpression(LOWEST)
+		if value != nil {
+			stmt.Values = append(stmt.Values, value)
+		}
+
+		p.nextToken()
+	}
+
+	if len(stmt.Values) == 0 {
+		p.Errors = append(p.Errors, "WARN: no values to append")
+		return nil
+	}
+
+	return stmt
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
@@ -173,6 +216,7 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	precedence := p.curPrecedence()
 	p.nextToken()
 	expression.Right = p.parseExpression(precedence)
+
 	return expression
 }
 
@@ -180,6 +224,7 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	// If current token is identifier and next token is =, it's an assignment
+	// user can choose to reassign values to a variable
 	if p.curTokenIs(token.IDENT) && p.peekTokenIs(token.ASSIGN) {
 		return p.parseAssignmentStatement()
 	}
@@ -438,6 +483,7 @@ func (p *Parser) parseReadExpression(precedence int) *ast.ReadExpression {
 	p.nextToken()
 
 	// Parse location
+	// TODO: handle read all data from csv file
 	location := p.parseLocationExpression()
 	fmt.Printf("[parseReadExpression] location expr: %s\n", location.String())
 	expr.Location = location
@@ -523,10 +569,29 @@ func (p *Parser) parseIdentifier() ast.Expression {
 // eg. 2 => read row 0 col 0
 func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	// rowTok := p.curToken
-	// fmt.Println("parsing ROW...", p.curToken.Type, p.curToken.Literal)
+	fmt.Println("parsing ROW...\n", p.curToken.Type, p.curToken.Literal)
 	// 1. prev token must be READ
 	// 2. next token must be an integer
 	// return LocationExpression
+
+	// current token must be "ROW" or nothing
+	if p.curToken.Type != token.SEMICOLON && p.curToken.Type != token.ROW {
+		errMsg := fmt.Sprintf("READ: expected first modifier to be ROW, got %s", p.curToken.Type)
+		p.Errors = append(p.Errors, errMsg)
+		return ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		}
+	}
+
+	// if current token is SEMICOLON, read ALL data from csv file
+	// equivalent to "read" or "read all"
+	if p.curToken.Type == token.SEMICOLON {
+		return ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		}
+	}
 
 	p.nextToken()
 

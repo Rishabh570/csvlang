@@ -181,6 +181,27 @@ func (le *LocationExpression) String() string {
 
 /*
 *
+Append statement
+*/
+type AppendStatement struct {
+	Token  token.Token // the token.LOAD token
+	Values []Expression
+}
+
+func (as *AppendStatement) statementNode()       {}
+func (as *AppendStatement) TokenLiteral() string { return as.Token.Literal }
+func (as *AppendStatement) String() string {
+	var out bytes.Buffer
+	vals := []string{}
+	for _, v := range as.Values {
+		vals = append(vals, v.String())
+	}
+	out.WriteString("append " + strings.Join(vals, ","))
+	return out.String()
+}
+
+/*
+*
 Let statement
 */
 type LetStatement struct {
