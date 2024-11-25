@@ -268,9 +268,17 @@ func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.O
 		return nil
 	}
 
+	// return as 2d array if no row index is provided
 	if rs.Location.RowIndex == -1 {
-		// TODO: return 2d array
-		// return
+		var res object.CSVRowsAndCols
+		for _, row := range csvObj.Rows {
+			var r object.CSVRow
+			for _, col := range csvObj.Headers {
+				r.Row = append(r.Row, row[col])
+			}
+			res.Value = append(res.Value, r.Row)
+		}
+		return &res
 	}
 
 	val := csvObj.Rows[rs.Location.RowIndex]
@@ -283,8 +291,11 @@ func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.O
 	fmt.Printf("row val: %+v\n", val)
 
 	if rs.Location.ColIndex == "" {
-		// TODO: return 1d array
-		// return
+		var res object.CSVRow
+		for _, row := range val {
+			res.Row = append(res.Row, row)
+		}
+		return &res
 	}
 
 	// fmt.Println("returning filtered row from evalRead")
@@ -435,7 +446,7 @@ func evalIdentifier(
 ) object.Object {
 	fmt.Printf("[evalIdentifier] starting, node.Value: %s, node.String(): %s\n", node.Value, node.String())
 	if val, ok := env.Get(node.Value); ok {
-		fmt.Printf("[evalIdentifier] returning val: %s\n", val.Inspect())
+		fmt.Printf("[evalIdentifier] returning val: %s\n", val)
 		return val
 	}
 

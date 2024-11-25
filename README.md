@@ -151,3 +151,8 @@ for i, row in allRows {
 ## Notes
 
 - overwriting value of a globally defined var won't effect its value outside the fn. but the same is possible with an if-condition
+- valid read ops
+  - readall
+  - read row <ind>;
+  - read row <rInd> col <cInd>
+  - read row <rInd> col <cInd>;

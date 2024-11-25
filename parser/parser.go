@@ -74,6 +74,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
 	p.registerPrefix(token.READ, p.parseReadAsExpression)
+	p.registerPrefix(token.READ_ALL, p.parseReadAllAsExpression)
 
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
@@ -101,15 +102,14 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
 	for p.curToken.Type != token.EOF {
-		fmt.Printf("[ParseProgram] p.curToken.Type: %s, p.curToken.Literal: %s\n", p.curToken.Type, p.curToken.Literal)
-
 		if p.curTokenIs(token.SINGLE_LINE_COMMENT) {
 			p.nextToken()
 			continue
 		}
+		fmt.Printf("[ParseProgram] starting... p.curToken.Type: %s, p.curToken.Literal: %s\n", p.curToken.Type, p.curToken.Literal)
 
 		stmt := p.parseStatement()
-		fmt.Printf("[ParseProgram] stmt: %s\n", stmt)
+		fmt.Printf("[ParseProgram] parsed stmt: %s\n", stmt)
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
@@ -129,6 +129,8 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.READ:
 		fmt.Println("[parseStatement] parsing READ stmt...")
 		return p.parseReadStatement()
+	case token.READ_ALL:
+		return p.parseReadAllStatement()
 	case token.APPEND:
 		return p.parseAppendStatement()
 	case token.RETURN:
@@ -451,29 +453,33 @@ func (p *Parser) parseLoadStatement() *ast.LoadStatement {
 	return stmt
 }
 
+func (p *Parser) parseReadAllStatement() *ast.ReadStatement {
+	fmt.Printf("[parseReadAllStatement] starting...")
+	expr := p.parseReadAllExpression()
+	stmt := ast.ReadStatement{
+		ReadExpression: expr,
+	}
+	return &stmt
+}
+
+func (p *Parser) parseReadAllExpression() *ast.ReadExpression {
+	return &ast.ReadExpression{
+		Token: p.curToken,
+		Location: ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		},
+	}
+}
+
+func (p *Parser) parseReadAllAsExpression() ast.Expression {
+	return p.parseReadAllExpression()
+}
+
 func (p *Parser) parseReadStatement() *ast.ReadStatement {
 	fmt.Printf("[parseReadStatement] starting...")
 	readExp := p.parseReadExpression(LOWEST)
 	return &ast.ReadStatement{ReadExpression: readExp}
-
-	// stmt := &ast.ReadStatement{Token: p.curToken}
-
-	// p.nextToken()
-
-	// // if p.curToken.Type == token.ILLEGAL {
-	// // 	fmt.Println("nothing ahead")
-	// // }
-
-	// // Parse the location as an expression instead of identifier
-	// location := p.parseReadExpression(LOWEST)
-	// // fmt.Println("read location: ", location.String(), location.TokenLiteral())
-	// // if location == nil {
-	// // 	return nil
-	// // }
-	// stmt.Location = location
-
-	// // fmt.Println("returning read stmt: ", stmt)
-	// return stmt
 }
 
 func (p *Parser) parseReadExpression(precedence int) *ast.ReadExpression {
@@ -483,24 +489,11 @@ func (p *Parser) parseReadExpression(precedence int) *ast.ReadExpression {
 	p.nextToken()
 
 	// Parse location
-	// TODO: handle read all data from csv file
 	location := p.parseLocationExpression()
 	fmt.Printf("[parseReadExpression] location expr: %s\n", location.String())
 	expr.Location = location
 
 	return expr
-
-	// prefix := p.prefixParseReadFns[p.curToken.Type]
-	// if prefix == nil {
-	// 	p.noPrefixParseFnError(p.curToken.Type)
-	// 	return &ast.LocationExpression{
-	// 		RowIndex: -1,
-	// 		ColIndex: "",
-	// 	}
-	// }
-
-	// leftExp := prefix()
-	// return leftExp
 }
 
 // This is for expression usage - implements prefixParseFn
@@ -517,7 +510,6 @@ func (p *Parser) peekTokenIs(t token.TokenType) bool {
 }
 
 func (p *Parser) expectPeek(t token.TokenType) bool {
-	fmt.Printf("[expectPeek] peekToken.Type: %s, t: %s\n", p.peekToken.Type, t)
 	if p.peekTokenIs(t) {
 		p.nextToken()
 		return true
@@ -568,25 +560,13 @@ func (p *Parser) parseIdentifier() ast.Expression {
 // eg.1 => read row 0
 // eg. 2 => read row 0 col 0
 func (p *Parser) parseLocationExpression() ast.LocationExpression {
-	// rowTok := p.curToken
-	fmt.Println("parsing ROW...\n", p.curToken.Type, p.curToken.Literal)
-	// 1. prev token must be READ
-	// 2. next token must be an integer
-	// return LocationExpression
+	fmt.Println("parsing location expr...\n", p.curToken.Type, p.curToken.Literal)
 
-	// current token must be "ROW" or nothing
-	if p.curToken.Type != token.SEMICOLON && p.curToken.Type != token.ROW {
-		errMsg := fmt.Sprintf("READ: expected first modifier to be ROW, got %s", p.curToken.Type)
+	// if current token is not ROW, ; or EOF, it's a read all statement
+	// equivalent to "read" or "read all" or "read;" or "read all;"
+	if p.curToken.Type != token.ROW {
+		errMsg := fmt.Sprintf("READ: expected first modifier key to be ROW, got %s", p.curToken.Type)
 		p.Errors = append(p.Errors, errMsg)
-		return ast.LocationExpression{
-			RowIndex: -1,
-			ColIndex: "",
-		}
-	}
-
-	// if current token is SEMICOLON, read ALL data from csv file
-	// equivalent to "read" or "read all"
-	if p.curToken.Type == token.SEMICOLON {
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -601,13 +581,12 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		errMsg := fmt.Sprintf("READ: expected first modifier value to be INT, got %s", p.curToken.Type)
 		p.Errors = append(p.Errors, errMsg)
 		return ast.LocationExpression{
-			Token:    token.Token{Type: token.READ, Literal: "read"},
 			RowIndex: -1,
 			ColIndex: "",
 		}
 	}
 
-	// p.curToken is guaranteed to be ROW, process the rowIndex
+	// p.curToken is guaranteed to be a ROW index, process the rowIndex
 	num, err := strconv.Atoi(p.curToken.Literal)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error converting string to int: %v", err)
@@ -627,12 +606,26 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	fmt.Println("locExpr: ", locExpr.RowIndex, locExpr.ColIndex)
 	if p.peekTokenIs(token.EOF) {
 		fmt.Println("finished parsing READ statement")
-		// fmt.Println("locExpr: ", locExpr.String())
 		return locExpr
 	}
 
+	p.nextToken()
+
+	fmt.Printf("[parseLocationExpression] curTOken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+
+	// if current token is SEMICOLON, return locExpr built till now
+	if p.curToken.Type == token.SEMICOLON {
+		fmt.Println("finished parsing READ statement")
+		return locExpr
+	}
+
+	// TODO: this should work I think 👀
+	// if p.curToken.Type != token.COL {
+	// 	return locExpr
+	// }
+
 	// return error if not "col"
-	if !p.peekTokenIs(token.COL) {
+	if !p.curTokenIs(token.COL) {
 		errMsg := fmt.Sprintf("READ: expected second modifier to be COL, got %s", p.peekToken.Type)
 		p.Errors = append(p.Errors, errMsg)
 		// reject complete statement, don't process rowIndex even when passed correctly
@@ -643,8 +636,6 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		}
 	}
 
-	// safe to progress to next token as it's guaranteed to be token.COL
-	p.nextToken()
 	// progress to next token to get the colIndex key
 	p.nextToken()
 
