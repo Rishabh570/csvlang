@@ -162,15 +162,29 @@ func (rs *ReadStatement) TokenLiteral() string { return rs.Token.Literal }
 // 	return out.String()
 // }
 
+type ReadFilterExpression struct {
+	Token      token.Token // the token.WHERE token
+	ColumnName string
+	Operator   string
+	Value      Expression
+}
+
+func (le *ReadFilterExpression) expressionNode()      {}
+func (le *ReadFilterExpression) TokenLiteral() string { return le.Token.Literal }
+func (le *ReadFilterExpression) String() string {
+	return fmt.Sprintf("Column: %s, Operator: %s, Value: %s", le.ColumnName, le.Operator, le.Value)
+}
+
 /*
 *
 LocationExpression
 */
 type LocationExpression struct {
 	Token    token.Token // the token.IDENT token
-	RowIndex int16
+	RowIndex int
 	// ColIndex int16
 	ColIndex string
+	Filter   *ReadFilterExpression
 }
 
 func (le *LocationExpression) expressionNode()      {}

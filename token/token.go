@@ -54,10 +54,9 @@ const (
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
 
-	HEAD = "HEAD"
-	TAIL = "TAIL"
-	ROW  = "ROW"
-	COL  = "COL"
+	ROW   = "ROW"
+	COL   = "COL"
+	WHERE = "WHERE"
 )
 
 type Token struct {
@@ -72,10 +71,9 @@ var keywords = map[string]TokenType{
 	"append":  APPEND,
 	"update":  UPDATE,
 	"delete":  DELETE,
-	"head":    HEAD,
-	"tail":    TAIL,
 	"row":     ROW,
 	"col":     COL,
+	"where":   "WHERE",
 	"fn":      FUNCTION,
 	"let":     LET,
 	"true":    TRUE,

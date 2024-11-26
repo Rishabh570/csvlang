@@ -478,11 +478,11 @@ func (p *Parser) parseReadAllAsExpression() ast.Expression {
 
 func (p *Parser) parseReadStatement() *ast.ReadStatement {
 	fmt.Printf("[parseReadStatement] starting...")
-	readExp := p.parseReadExpression(LOWEST)
+	readExp := p.parseReadExpression()
 	return &ast.ReadStatement{ReadExpression: readExp}
 }
 
-func (p *Parser) parseReadExpression(precedence int) *ast.ReadExpression {
+func (p *Parser) parseReadExpression() *ast.ReadExpression {
 	fmt.Printf("[parseReadExpression] tok.type: %s, tok.lit: %s\n", p.curToken.Type, p.curToken.Literal)
 	expr := &ast.ReadExpression{Token: p.curToken}
 
@@ -498,7 +498,7 @@ func (p *Parser) parseReadExpression(precedence int) *ast.ReadExpression {
 
 // This is for expression usage - implements prefixParseFn
 func (p *Parser) parseReadAsExpression() ast.Expression {
-	return p.parseReadExpression(LOWEST)
+	return p.parseReadExpression()
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {
@@ -562,8 +562,7 @@ func (p *Parser) parseIdentifier() ast.Expression {
 func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	fmt.Println("parsing location expr...\n", p.curToken.Type, p.curToken.Literal)
 
-	// if current token is not ROW, ; or EOF, it's a read all statement
-	// equivalent to "read" or "read all" or "read;" or "read all;"
+	// 1. 🏁🏁🏁 Parse row
 	if p.curToken.Type != token.ROW {
 		errMsg := fmt.Sprintf("READ: expected first modifier key to be ROW, got %s", p.curToken.Type)
 		p.Errors = append(p.Errors, errMsg)
@@ -575,10 +574,8 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 	p.nextToken()
 
-	// fmt.Println("parsing row index now...", p.curToken.Type, p.curToken.Literal)
-
-	if p.curToken.Type != token.INT {
-		errMsg := fmt.Sprintf("READ: expected first modifier value to be INT, got %s", p.curToken.Type)
+	if p.curToken.Type != token.INT && p.curToken.Type != token.ASTERISK {
+		errMsg := fmt.Sprintf("READ: expected first modifier value to be INT or ASTERISK, got %s", p.curToken.Type)
 		p.Errors = append(p.Errors, errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
@@ -586,47 +583,41 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		}
 	}
 
-	// p.curToken is guaranteed to be a ROW index, process the rowIndex
-	num, err := strconv.Atoi(p.curToken.Literal)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error converting string to int: %v", err)
-		p.Errors = append(p.Errors, errMsg)
-		return ast.LocationExpression{
-			RowIndex: -1,
-			ColIndex: "",
+	// fmt.Printf("[parseLocationExpression] curTOkennnn: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+
+	locExpr := ast.LocationExpression{}
+
+	// cur token can be either of the two: INT or ASTERISK
+	if p.curToken.Type == token.INT {
+		num, err := strconv.Atoi(p.curToken.Literal)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error converting string to int: %v", err)
+			p.Errors = append(p.Errors, errMsg)
+			return ast.LocationExpression{
+				RowIndex: -1,
+				ColIndex: "",
+			}
 		}
+		locExpr.RowIndex = num
+	} else {
+		locExpr.RowIndex = -2 // -2 is a special value to denote asterisk
 	}
 
-	locExpr := ast.LocationExpression{
-		Token:    token.Token{Type: token.READ, Literal: "read"},
-		RowIndex: int16(num),
-		ColIndex: "",
-	}
+	// fmt.Println("[parseLocationExpression] locExpr: ", locExpr.RowIndex, locExpr.ColIndex)
 
-	fmt.Println("locExpr: ", locExpr.RowIndex, locExpr.ColIndex)
-	if p.peekTokenIs(token.EOF) {
-		fmt.Println("finished parsing READ statement")
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
 		return locExpr
 	}
 
 	p.nextToken()
 
-	fmt.Printf("[parseLocationExpression] curTOken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
-
-	// if current token is SEMICOLON, return locExpr built till now
-	if p.curToken.Type == token.SEMICOLON {
-		fmt.Println("finished parsing READ statement")
-		return locExpr
-	}
-
-	// TODO: this should work I think 👀
-	// if p.curToken.Type != token.COL {
-	// 	return locExpr
-	// }
+	// 2. 🏁🏁🏁 Parse column
+	// fmt.Printf("[parseLocationExpression] curTOken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
 
 	// return error if not "col"
-	if !p.curTokenIs(token.COL) {
-		errMsg := fmt.Sprintf("READ: expected second modifier to be COL, got %s", p.peekToken.Type)
+	if !p.curTokenIs(token.COL) && !p.curTokenIs(token.WHERE) {
+		errMsg := fmt.Sprintf("READ: expected second modifier to be COL or WHERE, got %s", p.peekToken.Type)
 		p.Errors = append(p.Errors, errMsg)
 		// reject complete statement, don't process rowIndex even when passed correctly
 		// csvlang mandates complete statement to be syntactically correct
@@ -636,13 +627,82 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		}
 	}
 
-	// progress to next token to get the colIndex key
+	// If cur token is COL
+	if p.curTokenIs(token.COL) {
+		p.nextToken()
+
+		locExpr.ColIndex = p.curToken.Literal
+
+		if p.peekTokenIs(token.SEMICOLON) {
+			p.nextToken()
+			return locExpr
+		}
+
+		if !p.peekTokenIs(token.EOF) && !p.peekTokenIs(token.WHERE) {
+			errMsg := fmt.Sprintf("READ: expected WHERE token to follow COL, got %s", p.peekToken.Type)
+			p.Errors = append(p.Errors, errMsg)
+			return ast.LocationExpression{
+				RowIndex: -1,
+				ColIndex: "",
+			}
+		}
+
+		p.nextToken()
+	}
+
+	// 🏁🏁🏁 3. the cur token is WHERE, start parsing the filter expression
+	filterExpr := ast.ReadFilterExpression{Token: p.curToken}
+	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+
 	p.nextToken()
 
-	// fmt.Println("parsing col index now...", p.curToken.Type, p.curToken.Literal)
+	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+	if p.curToken.Type != token.IDENT {
+		errMsg := fmt.Sprintf("READ: expected column name to be IDENT, got %s", p.curToken.Type)
+		p.Errors = append(p.Errors, errMsg)
+		return ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		}
+	}
+	filterExpr.ColumnName = p.curToken.Literal
 
-	locExpr.ColIndex = p.curToken.Literal
-	fmt.Println("locExpr: ", locExpr)
+	p.nextToken()
+
+	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+	if p.curToken.Type != token.EQ &&
+		p.curToken.Type != token.NOT_EQ &&
+		p.curToken.Type != token.LT &&
+		p.curToken.Type != token.GT {
+		errMsg := fmt.Sprintf("READ: expected operator to be one of [EQ, NOT_EQ, LT, GT] got %s", p.curToken.Type)
+		p.Errors = append(p.Errors, errMsg)
+		return ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		}
+	}
+	filterExpr.Operator = p.curToken.Literal
+
+	p.nextToken()
+
+	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
+	if p.curToken.Type != token.STRING && p.curToken.Type != token.INT {
+		errMsg := fmt.Sprintf("READ: expected value to be either STRING or INT, got %s", p.curToken.Type)
+		p.Errors = append(p.Errors, errMsg)
+		return ast.LocationExpression{
+			RowIndex: -1,
+			ColIndex: "",
+		}
+	}
+	// filterExpr.Value =  p.curToken.Literal
+	filterExpr.Value = p.parseExpression(LOWEST)
+
+	locExpr.Filter = &filterExpr
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
 	return locExpr
 }
 

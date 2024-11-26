@@ -22,6 +22,7 @@ const (
 	BOOLEAN_OBJ      = "BOOLEAN"
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
 	FUNCTION_OBJ     = "FUNCTION"
+	ARRAY            = "ARRAY"
 
 	BUILTIN_OBJ = "BUILTIN"
 )
@@ -235,4 +236,22 @@ type CSVVal struct {
 func (c *CSVVal) Type() ObjectType { return CSV_VAL }
 func (c *CSVVal) Inspect() string {
 	return c.Value
+}
+
+type Array struct {
+	Elements []Object
+}
+
+func (ar *Array) Type() ObjectType { return ARRAY }
+func (ar *Array) Inspect() string {
+	var builder strings.Builder
+	builder.WriteString("[")
+	for i, elem := range ar.Elements {
+		builder.WriteString(elem.Inspect())
+		if i < len(ar.Elements)-1 {
+			builder.WriteString(", ")
+		}
+	}
+	builder.WriteString("]")
+	return builder.String()
 }
