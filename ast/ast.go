@@ -441,3 +441,42 @@ type StringLiteral struct {
 func (sl *StringLiteral) expressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string       { return sl.Token.Literal }
+
+// Array Literal Expression
+type ArrayLiteral struct {
+	Token    token.Token // the '[' token
+	Elements []Expression
+}
+
+func (al *ArrayLiteral) expressionNode()      {}
+func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
+func (al *ArrayLiteral) String() string {
+	var out bytes.Buffer
+	elements := []string{}
+	for _, el := range al.Elements {
+		elements = append(elements, el.String())
+	}
+	out.WriteString("[")
+	out.WriteString(strings.Join(elements, ", "))
+	out.WriteString("]")
+	return out.String()
+}
+
+// Index Expression for accessing array elements
+type IndexExpression struct {
+	Token token.Token // The '[' token
+	Left  Expression  // The array being indexed
+	Index Expression  // The index value
+}
+
+func (al *IndexExpression) expressionNode()      {}
+func (al *IndexExpression) TokenLiteral() string { return al.Token.Literal }
+func (al *IndexExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(al.Left.String())
+	out.WriteString("[")
+	out.WriteString(al.Index.String())
+	out.WriteString("])")
+	return out.String()
+}

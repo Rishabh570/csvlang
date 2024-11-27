@@ -59,7 +59,7 @@ for i, row in data {
   append row
 }
 
-<!-- 1d/2d arr support -->
+<!-- [DONE] 1d/2d arr support -->
 <!-- access elements at indexes, len, concat? -->
 
 <!-- [DONE] read rows,cols,all + filter on col values -->

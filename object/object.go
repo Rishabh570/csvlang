@@ -238,20 +238,20 @@ func (c *CSVVal) Inspect() string {
 	return c.Value
 }
 
+// Array object
 type Array struct {
 	Elements []Object
 }
 
-func (ar *Array) Type() ObjectType { return ARRAY }
-func (ar *Array) Inspect() string {
-	var builder strings.Builder
-	builder.WriteString("[")
-	for i, elem := range ar.Elements {
-		builder.WriteString(elem.Inspect())
-		if i < len(ar.Elements)-1 {
-			builder.WriteString(", ")
-		}
+func (a *Array) Type() ObjectType { return ARRAY }
+func (a *Array) Inspect() string {
+	var out bytes.Buffer
+	elements := []string{}
+	for _, e := range a.Elements {
+		elements = append(elements, e.Inspect())
 	}
-	builder.WriteString("]")
-	return builder.String()
+	out.WriteString("[")
+	out.WriteString(strings.Join(elements, ", "))
+	out.WriteString("]")
+	return out.String()
 }
