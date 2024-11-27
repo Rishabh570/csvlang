@@ -222,7 +222,7 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	fmt.Printf("[parseExpression] tok: %s, %s\n", p.curToken.Type, p.curToken.Literal)
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
-		fmt.Println("[parseExpression] no prefix parse fn...\n")
+		fmt.Printf("[parseExpression] no prefix parse fn...\n")
 		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
 	}

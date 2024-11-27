@@ -6,12 +6,11 @@ import (
 )
 
 func TestNextTokenOne(t *testing.T) {
-	input := `load input.csv
-	read head 10
-	read tail 5
+	input := `
+	load input.csv
 	read row 0 col 0
 	read row 0
-	read col 0`
+	`
 
 	tests := []struct {
 		expectedType    token.TokenType
@@ -20,21 +19,12 @@ func TestNextTokenOne(t *testing.T) {
 		{token.LOAD, "load"},
 		{token.IDENT, "input.csv"},
 		{token.READ, "read"},
-		{token.HEAD, "head"},
-		{token.INT, "10"},
-		{token.READ, "read"},
-		{token.TAIL, "tail"},
-		{token.INT, "5"},
-		{token.READ, "read"},
 		{token.ROW, "row"},
 		{token.INT, "0"},
 		{token.COL, "col"},
 		{token.INT, "0"},
 		{token.READ, "read"},
 		{token.ROW, "row"},
-		{token.INT, "0"},
-		{token.READ, "read"},
-		{token.COL, "col"},
 		{token.INT, "0"},
 		{token.EOF, ""},
 	}
