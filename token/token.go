@@ -54,6 +54,8 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	SAVE     = "SAVE"
+	AS       = "AS" // used in "save rows as filtered.csv" statements
 
 	ROW   = "ROW"
 	COL   = "COL"
@@ -81,6 +83,8 @@ var keywords = map[string]TokenType{
 	"if":     IF,
 	"else":   ELSE,
 	"return": RETURN,
+	"save":   SAVE,
+	"as":     AS,
 }
 
 func LookupIdent(ident string) TokenType {

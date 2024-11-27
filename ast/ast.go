@@ -480,3 +480,22 @@ func (al *IndexExpression) String() string {
 	out.WriteString("])")
 	return out.String()
 }
+
+type SaveStatement struct {
+	Token    token.Token // the token.SAVE token
+	Source   Expression  // Optional: identifier for custom rows
+	Filename string
+	Format   string // "csv" or "json"
+}
+
+func (al *SaveStatement) statementNode()       {}
+func (al *SaveStatement) TokenLiteral() string { return al.Token.Literal }
+func (ss *SaveStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString(ss.TokenLiteral() + " ")
+	if ss.Source != nil {
+		out.WriteString(ss.Source.String() + " as ")
+	}
+	out.WriteString(ss.Filename)
+	return out.String()
+}

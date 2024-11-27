@@ -4,6 +4,7 @@ import (
 	"csvlang/ast"
 	"csvlang/object"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -33,6 +34,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalReadStatement(node, env)
 	case *ast.AppendStatement:
 		return evalAppendStatement(node, env)
+	case *ast.SaveStatement:
+		return evalSaveStatement(node, env)
 	// Expressions
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
@@ -127,6 +130,89 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		fmt.Printf("[Eval] no match: %+v\n", node.String())
 	}
 	return nil
+}
+
+func evalSaveStatement(node *ast.SaveStatement, env *object.Environment) object.Object {
+	var dataToSave *object.CSV
+
+	if node.Source != nil {
+		// Get custom source data
+		value := Eval(node.Source, env)
+		if isError(value) {
+			return value
+		}
+
+		// Validate it's a CSV object
+		csv, ok := value.(*object.CSV)
+		if !ok {
+			return newError("cannot save non-CSV data")
+		}
+		dataToSave = csv
+	} else {
+		// Get latest CSV from environment
+		value, ok := env.Get("csv")
+		if !ok {
+			return newError("no CSV data to save")
+		}
+		dataToSave = value.(*object.CSV)
+	}
+
+	// Save based on format
+	switch node.Format {
+	case "csv":
+		return saveAsCSV(dataToSave, node.Filename)
+	case "json":
+		return saveAsJSON(dataToSave, node.Filename)
+	default:
+		return newError("unsupported format: %s", node.Format)
+	}
+}
+
+func saveAsCSV(csvData *object.CSV, filename string) object.Object {
+	file, err := os.Create(filename)
+	if err != nil {
+		return newError("could not create file: %s", err)
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write headers
+	if err := writer.Write(csvData.Headers); err != nil {
+		return newError("error writing headers: %s", err)
+	}
+
+	// Write rows
+	for _, row := range csvData.Rows {
+		record := make([]string, len(csvData.Headers))
+		for i, header := range csvData.Headers {
+			record[i] = row[header]
+		}
+		if err := writer.Write(record); err != nil {
+			return newError("error writing row: %s", err)
+		}
+	}
+
+	return NULL
+}
+
+func saveAsJSON(csv *object.CSV, filename string) object.Object {
+	data := map[string]interface{}{
+		"headers": csv.Headers,
+		"rows":    csv.Rows,
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return newError("error converting to JSON: %s", err)
+	}
+
+	if err := os.WriteFile(filename, jsonData, 0644); err != nil {
+		return newError("error writing file: %s", err)
+	}
+
+	return NULL
 }
 
 func evalAppendStatement(node *ast.AppendStatement, env *object.Environment) object.Object {
