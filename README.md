@@ -59,19 +59,34 @@ for i, row in data {
   append row
 }
 
-<!-- Filter row and cols -->
+<!-- 1d/2d arr support -->
+<!-- access elements at indexes, len, concat? -->
 
-<!-- a built-in fn that removes null/empty fields -->
+<!-- [DONE] read rows,cols,all + filter on col values -->
+read row 0;
+read row 0 where age > 18;   <!-- should be invalid -->
+read row 0 col age;
+read row *;
+read row * where age > 18;
+read row * col name;
+read row * col name where age > 18;
 
-<!-- export keyword to export the csv as json or csv -->
+<!-- for loop -->
 
-<!-- built-ins for number and []number: add(), sub(), mul(), div(), avg(), mean([]), median([]) -->
+<!-- built-in fn: -->
+<!-- 1. removes null/empty fields -->
+<!-- 2. fills null/empty fields -->
+<!-- 3. removes exact duplicate rows -->
 
-<!-- builts-in for string and []string: len(), isEmpty()
+<!-- "save" keyword to save the csv as json or csv -->
+<!--1. save -->
+<!--2. save as filtered.(csv|json)  -->
+<!-- 3. save rows -->
+<!-- 4. save rows as filtered.(csv|json) -->
 
-<!-- csvObj.sort(orderByCol, asc/des) -->
+<!-- built-in fns for number and []number: sum([]int), avg([]int) -->
 
-<!-- csvObj.removeDuplicateRows() -->
+<!-- built-in fns []string: len() -->
 
 <!-- [1/1] Delete -->
 delete row 0
@@ -143,11 +158,16 @@ for i, row in allRows {
 1. should show stack traces
 
 
-<!-- EXPORT -->
-1. should allow export as json, csv, txt
-
 
 
 ## Notes
 
 - overwriting value of a globally defined var won't effect its value outside the fn. but the same is possible with an if-condition
+- valid read ops
+  - let val = read row 0;
+  - let val = read row 0 where age > 12;
+  - let val = read row 0 col age;
+  - let val = read row *;
+  - let val = read row * where age > 12;
+  - let val = read row * col name;
+  - let val = read row * col name where age > 12;

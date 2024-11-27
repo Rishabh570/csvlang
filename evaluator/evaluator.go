@@ -253,6 +253,131 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 	return csvObj
 }
 
+func selectRows(rows []map[string]string, rowIndex int) []map[string]string {
+	// rowIndex -2 means select all rows
+	if rowIndex == -2 {
+		return rows
+	}
+
+	// do not return anything if invalid rowIndex
+	if rowIndex >= len(rows) || rowIndex < 0 {
+		return nil
+	}
+
+	return []map[string]string{rows[rowIndex]}
+}
+
+func evaluateNumericCondition(columnValue string, operator string, compareValue int64) bool {
+	// Convert column value to number
+	rowVal, err := strconv.ParseInt(columnValue, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	switch operator {
+	case ">":
+		return rowVal > compareValue
+	case "<":
+		return rowVal < compareValue
+	case ">=":
+		return rowVal >= compareValue
+	case "<=":
+		return rowVal <= compareValue
+	case "==":
+		return rowVal == compareValue
+	case "!=":
+		return rowVal != compareValue
+	default:
+		return false
+	}
+}
+
+func evaluateStringCondition(columnValue string, operator string, compareValue string) bool {
+	switch operator {
+	case "==":
+		return columnValue == compareValue
+	case "!=":
+		return columnValue != compareValue
+	case ">":
+		return columnValue > compareValue
+	case "<":
+		return columnValue < compareValue
+	case ">=":
+		return columnValue >= compareValue
+	case "<=":
+		return columnValue <= compareValue
+	default:
+		return false
+	}
+}
+
+func evaluateBooleanCondition(columnValue string, operator string, compareValue bool) bool {
+	rowVal, err := strconv.ParseBool(columnValue)
+	if err != nil {
+		return false
+	}
+
+	switch operator {
+	case "==":
+		return rowVal == compareValue
+	case "!=":
+		return rowVal != compareValue
+	default:
+		return false
+	}
+}
+
+func evaluateCondition(row map[string]string, where *ast.ReadFilterExpression, env *object.Environment) bool {
+	columnValue := row[where.ColumnName]
+
+	// First evaluate the condition's value
+	compareValue := Eval(where.Value, env)
+	if isError(compareValue) {
+		return false
+	}
+
+	switch compareValue.Type() {
+	case object.INTEGER_OBJ:
+		return evaluateNumericCondition(columnValue, where.Operator, compareValue.(*object.Integer).Value)
+
+	case object.STRING_OBJ:
+		return evaluateStringCondition(columnValue, where.Operator, compareValue.(*object.String).Value)
+
+	case object.BOOLEAN_OBJ:
+		return evaluateBooleanCondition(columnValue, where.Operator, compareValue.(*object.Boolean).Value)
+	default:
+		return false
+	}
+}
+
+func filterRows(rows []map[string]string, where *ast.ReadFilterExpression, env *object.Environment) []map[string]string {
+	var filtered []map[string]string
+
+	for _, row := range rows {
+		if evaluateCondition(row, where, env) {
+			filtered = append(filtered, row)
+		}
+	}
+
+	return filtered
+}
+
+func extractColumns(rows []map[string]string, column string) *object.Array {
+	var values object.Array
+
+	for _, row := range rows {
+		if val, ok := row[column]; ok {
+			if intValue, err := strconv.ParseInt(val, 10, 64); err == nil {
+				values.Elements = append(values.Elements, &object.Integer{Value: intValue})
+			} else {
+				values.Elements = append(values.Elements, &object.String{Value: val})
+			}
+		}
+	}
+
+	return &values
+}
+
 func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.Object {
 	fmt.Printf("[evalReadStatement] type: %s, lit: %s, row: %d, col: %s\n", rs.Token.Type, rs.Token.Literal, rs.Location.RowIndex, rs.Location.ColIndex)
 
@@ -268,47 +393,17 @@ func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.O
 		return nil
 	}
 
-	if rs.Location.RowIndex == -1 {
-		// TODO: return 2d array
-		// return
+	rows := selectRows(csvObj.Rows, rs.Location.RowIndex)
+
+	if rs.Location.Filter != nil {
+		rows = filterRows(rows, rs.Location.Filter, env)
 	}
 
-	val := csvObj.Rows[rs.Location.RowIndex]
-	if val == nil {
-		// fmt.Println("val is nil")
-		return &object.Error{
-			Message: fmt.Sprintf("no rows available with row index: %d", rs.Location.RowIndex),
-		}
-	}
-	fmt.Printf("row val: %+v\n", val)
-
-	if rs.Location.ColIndex == "" {
-		// TODO: return 1d array
-		// return
-	}
-
-	// fmt.Println("returning filtered row from evalRead")
 	if rs.Location.ColIndex != "" {
-		fmt.Printf("rs.Location.ColIndex: %s\n", rs.Location.ColIndex)
-		colVal := val[rs.Location.ColIndex]
-		fmt.Printf("colVal: %s\n", colVal)
-		if colVal == "" {
-			return &object.Error{
-				Message: fmt.Sprintf("no available values with row index: %d and column name: %s\n", rs.Location.RowIndex, rs.Location.ColIndex),
-			}
-		}
-
-		// Try to determine the type and convert accordingly
-		if intValue, err := strconv.ParseInt(colVal, 10, 64); err == nil {
-			return &object.Integer{Value: intValue}
-		}
-
-		// If not an integer, return as string
-		return &object.String{Value: colVal}
+		return extractColumns(rows, rs.Location.ColIndex)
 	}
 
-	return nil
-	// return newError("no CSV file has been loaded")
+	return &object.CSV{Rows: rows, Headers: csvObj.Headers, ColumnTypes: csvObj.ColumnTypes}
 }
 
 func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) object.Object {
@@ -435,7 +530,7 @@ func evalIdentifier(
 ) object.Object {
 	fmt.Printf("[evalIdentifier] starting, node.Value: %s, node.String(): %s\n", node.Value, node.String())
 	if val, ok := env.Get(node.Value); ok {
-		fmt.Printf("[evalIdentifier] returning val: %s\n", val.Inspect())
+		fmt.Printf("[evalIdentifier] returning val: %s\n", val)
 		return val
 	}
 

@@ -22,6 +22,7 @@ const (
 	BOOLEAN_OBJ      = "BOOLEAN"
 	RETURN_VALUE_OBJ = "RETURN_VALUE"
 	FUNCTION_OBJ     = "FUNCTION"
+	ARRAY            = "ARRAY"
 
 	BUILTIN_OBJ = "BUILTIN"
 )
@@ -182,8 +183,28 @@ func (c *CSV) InferColumnTypes() {
 	}
 }
 
+type CSVRowsAndCols struct {
+	Value [][]string
+}
+
+func (c *CSVRowsAndCols) Type() ObjectType { return CSV_ROW }
+func (c *CSVRowsAndCols) Inspect() string {
+	var builder strings.Builder
+	for _, r := range c.Value {
+		for j, c := range r {
+			builder.WriteString(c)
+			if j < len(r)-1 {
+				builder.WriteString(",")
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	return builder.String()
+}
+
 type CSVRow struct {
-	Row map[string]string
+	Row []string
 }
 
 func (c *CSVRow) Type() ObjectType { return CSV_ROW }
@@ -192,13 +213,18 @@ func (c *CSVRow) Inspect() string {
 	var builder strings.Builder
 
 	// Build each row of data
-	for key, value := range c.Row {
-		builder.WriteString(key)
-		builder.WriteString(": ")
-		builder.WriteString(value)
-		builder.WriteString("\n") // Adds a newline for each pair, you can change it to any separator you want
-	}
+	// for key, value := range c.Row {
+	// builder.WriteString(key)
+	// 	builder.WriteString(": ")
+	// 	builder.WriteString(value)
+	// 	builder.WriteString("\n") // Adds a newline for each pair, you can change it to any separator you want
+	// }
 	// builder.WriteString("\n")
+
+	for _, r := range c.Row {
+		builder.WriteString(r)
+		builder.WriteString("\n")
+	}
 
 	return builder.String()
 }
@@ -210,4 +236,22 @@ type CSVVal struct {
 func (c *CSVVal) Type() ObjectType { return CSV_VAL }
 func (c *CSVVal) Inspect() string {
 	return c.Value
+}
+
+type Array struct {
+	Elements []Object
+}
+
+func (ar *Array) Type() ObjectType { return ARRAY }
+func (ar *Array) Inspect() string {
+	var builder strings.Builder
+	builder.WriteString("[")
+	for i, elem := range ar.Elements {
+		builder.WriteString(elem.Inspect())
+		if i < len(ar.Elements)-1 {
+			builder.WriteString(", ")
+		}
+	}
+	builder.WriteString("]")
+	return builder.String()
 }
