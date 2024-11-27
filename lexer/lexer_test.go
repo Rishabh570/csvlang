@@ -10,6 +10,10 @@ func TestNextTokenOne(t *testing.T) {
 	load input.csv
 	read row 0 col 0
 	read row 0
+	save as output.csv
+	save as output.json
+	save myRows as output.csv
+	save myRows as output.json
 	`
 
 	tests := []struct {
@@ -26,6 +30,20 @@ func TestNextTokenOne(t *testing.T) {
 		{token.READ, "read"},
 		{token.ROW, "row"},
 		{token.INT, "0"},
+		{token.SAVE, "save"},
+		{token.AS, "as"},
+		{token.IDENT, "output.csv"},
+		{token.SAVE, "save"},
+		{token.AS, "as"},
+		{token.IDENT, "output.json"},
+		{token.SAVE, "save"},
+		{token.IDENT, "myRows"},
+		{token.AS, "as"},
+		{token.IDENT, "output.csv"},
+		{token.SAVE, "save"},
+		{token.IDENT, "myRows"},
+		{token.AS, "as"},
+		{token.IDENT, "output.json"},
 		{token.EOF, ""},
 	}
 

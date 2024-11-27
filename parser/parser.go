@@ -6,6 +6,7 @@ import (
 	"csvlang/token"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -136,9 +137,49 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseAppendStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
+	case token.SAVE:
+		return p.parseSaveStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+// Two options:
+// 1. save as filtered.csv/filtered.json
+// 2. save myCustomRows as filtered.csv/filtered.json
+func (p *Parser) parseSaveStatement() *ast.SaveStatement {
+	stmt := &ast.SaveStatement{Token: p.curToken}
+
+	if p.peekTokenIs(token.IDENT) {
+		stmt.Source = &ast.Identifier{Token: p.peekToken, Value: p.peekToken.Literal}
+
+		p.nextToken()
+	}
+
+	if !p.expectPeek(token.AS) {
+		return nil
+	}
+	p.nextToken() // move past AS
+
+	// Parse filename
+	if !p.curTokenIs(token.IDENT) && !p.curTokenIs(token.STRING) {
+		p.Errors = append(p.Errors, "expected filename")
+		return nil
+	}
+
+	stmt.Filename = p.curToken.Literal
+
+	// Determine format from filename extension
+	if strings.HasSuffix(stmt.Filename, ".json") {
+		stmt.Format = "json"
+	} else if strings.HasSuffix(stmt.Filename, ".csv") {
+		stmt.Format = "csv"
+	} else {
+		p.Errors = append(p.Errors, "unsupported file format")
+		return nil
+	}
+
+	return stmt
 }
 
 func (p *Parser) parseArrayLiteral() ast.Expression {
