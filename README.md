@@ -164,7 +164,10 @@ for i, row in allRows {
 
 - overwriting value of a globally defined var won't effect its value outside the fn. but the same is possible with an if-condition
 - valid read ops
-  - readall
-  - read row <ind>;
-  - read row <rInd> col <cInd>
-  - read row <rInd> col <cInd>;
+  - let val = read row 0;
+  - let val = read row 0 where age > 12;
+  - let val = read row 0 col age;
+  - let val = read row *;
+  - let val = read row * where age > 12;
+  - let val = read row * col name;
+  - let val = read row * col name where age > 12;

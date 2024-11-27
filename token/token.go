@@ -42,7 +42,6 @@ const (
 	// Keywords
 	LOAD     = "LOAD"
 	READ     = "READ"
-	READ_ALL = "READ_ALL"
 	APPEND   = "APPEND"
 	UPDATE   = "UPDATE"
 	DELETE   = "DELETE"
@@ -65,22 +64,21 @@ type Token struct {
 }
 
 var keywords = map[string]TokenType{
-	"load":    LOAD,
-	"read":    READ,
-	"readall": READ_ALL,
-	"append":  APPEND,
-	"update":  UPDATE,
-	"delete":  DELETE,
-	"row":     ROW,
-	"col":     COL,
-	"where":   "WHERE",
-	"fn":      FUNCTION,
-	"let":     LET,
-	"true":    TRUE,
-	"false":   FALSE,
-	"if":      IF,
-	"else":    ELSE,
-	"return":  RETURN,
+	"load":   LOAD,
+	"read":   READ,
+	"append": APPEND,
+	"update": UPDATE,
+	"delete": DELETE,
+	"row":    ROW,
+	"col":    COL,
+	"where":  "WHERE",
+	"fn":     FUNCTION,
+	"let":    LET,
+	"true":   TRUE,
+	"false":  FALSE,
+	"if":     IF,
+	"else":   ELSE,
+	"return": RETURN,
 }
 
 func LookupIdent(ident string) TokenType {

@@ -74,7 +74,6 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
 	p.registerPrefix(token.READ, p.parseReadAsExpression)
-	p.registerPrefix(token.READ_ALL, p.parseReadAllAsExpression)
 
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
@@ -129,8 +128,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.READ:
 		fmt.Println("[parseStatement] parsing READ stmt...")
 		return p.parseReadStatement()
-	case token.READ_ALL:
-		return p.parseReadAllStatement()
 	case token.APPEND:
 		return p.parseAppendStatement()
 	case token.RETURN:
@@ -451,29 +448,6 @@ func (p *Parser) parseLoadStatement() *ast.LoadStatement {
 
 	fmt.Printf("returning load stmt: type: %s, lit: %s, filename: %s, stmt: %s\n", stmt.Token.Type, stmt.Token.Literal, stmt.Filename.String(), stmt.String())
 	return stmt
-}
-
-func (p *Parser) parseReadAllStatement() *ast.ReadStatement {
-	fmt.Printf("[parseReadAllStatement] starting...")
-	expr := p.parseReadAllExpression()
-	stmt := ast.ReadStatement{
-		ReadExpression: expr,
-	}
-	return &stmt
-}
-
-func (p *Parser) parseReadAllExpression() *ast.ReadExpression {
-	return &ast.ReadExpression{
-		Token: p.curToken,
-		Location: ast.LocationExpression{
-			RowIndex: -1,
-			ColIndex: "",
-		},
-	}
-}
-
-func (p *Parser) parseReadAllAsExpression() ast.Expression {
-	return p.parseReadAllExpression()
 }
 
 func (p *Parser) parseReadStatement() *ast.ReadStatement {
