@@ -7,61 +7,12 @@ import (
 	"testing"
 )
 
-// func TestLoadStatement(t *testing.T) {
-// 	input := `
-// 	load input.csv;
-// 	`
-// 	l := lexer.New(input)
-// 	p := New(l)
-// 	program := p.ParseProgram()
-// 	if program == nil {
-// 		t.Fatalf("ParseProgram() returned nil")
-// 	}
-// 	fmt.Println("len: ", program.Statements[0])
-// 	if len(program.Statements) != 1 {
-// 		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
-// 			len(program.Statements))
-// 	}
-// 	tests := []struct {
-// 		expectedIdentifier string
-// 	}{
-// 		{"LOAD"},
-// 	}
-// 	for _, tt := range tests {
-// 		stmt := program.Statements[0]
-// 		fmt.Println("stmt: ", stmt)
-// 		if !testLoadStatement(t, stmt, tt.expectedIdentifier) {
-// 			return
-// 		}
-// 	}
-// }
-
-func testLoadStatement(t *testing.T, s ast.Statement, expectedType string) bool {
-	if s.TokenLiteral() != "load" {
-		t.Errorf("s.TokenLiteral not 'load'. got=%q", s.TokenLiteral())
-		return false
-	}
-
-	loadStmt, ok := s.(*ast.LoadStatement)
-	if !ok {
-		t.Errorf("s not *ast.LoadStatement. got=%T", s)
-		return false
-	}
-
-	if string(loadStmt.Token.Type) != expectedType {
-		t.Errorf("loadStmt.Token.Type not '%s'. got=%s", expectedType, loadStmt.Token.Type)
-		return false
-	}
-
-	return true
-}
-
-func TestLoadStatement1(t *testing.T) {
+func TestLoadStatement(t *testing.T) {
 	tests := []struct {
 		input         string
 		expectedValue string
 	}{
-		// {`LOAD "input.csv"`, "input.csv"},
+		{`LOAD input.csv`, "input.csv"},
 		{`load filename`, "filename"},
 	}
 
