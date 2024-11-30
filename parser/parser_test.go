@@ -724,6 +724,7 @@ func testLetStatement(t *testing.T, s ast.Statement, name string) bool {
 	return true
 }
 
+// TODO: fix test
 func checkParserErrors(t *testing.T, p *Parser) {
 	errors := p.Errors
 

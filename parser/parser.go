@@ -5,6 +5,7 @@ import (
 	"csvlang/lexer"
 	"csvlang/token"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -41,7 +42,7 @@ type Parser struct {
 	peekToken token.Token
 
 	// stores all the parsing errors
-	Errors []string
+	Errors []*ParserError
 
 	prefixParseFns     map[token.TokenType]prefixParseFn
 	infixParseFns      map[token.TokenType]infixParseFn
@@ -57,7 +58,7 @@ type (
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
 		l:                  l,
-		Errors:             []string{},
+		Errors:             []*ParserError{},
 		prefixParseFns:     make(map[token.TokenType]prefixParseFn),
 		infixParseFns:      make(map[token.TokenType]infixParseFn),
 		prefixParseReadFns: make(map[token.TokenType]prefixParseReadFn),
@@ -100,6 +101,20 @@ func (p *Parser) nextToken() {
 	p.prevToken = p.curToken
 	p.curToken = p.peekToken
 	p.peekToken = p.l.NextToken()
+}
+
+func (p *Parser) addError(message string) {
+	stack := make([]uintptr, 50)
+	length := runtime.Callers(2, stack[:]) // Skip first two frames
+
+	er := &ParserError{
+		Message: message,
+		Stack:   stack[:length],
+		Line:    p.l.Line,
+		Column:  p.l.Column,
+	}
+
+	p.Errors = append(p.Errors, er)
 }
 
 func (p *Parser) ParseProgram() *ast.Program {
@@ -163,7 +178,7 @@ func (p *Parser) parseSaveStatement() *ast.SaveStatement {
 
 	// Parse filename
 	if !p.curTokenIs(token.IDENT) && !p.curTokenIs(token.STRING) {
-		p.Errors = append(p.Errors, "expected filename")
+		p.addError("expected filename")
 		return nil
 	}
 
@@ -175,7 +190,7 @@ func (p *Parser) parseSaveStatement() *ast.SaveStatement {
 	} else if strings.HasSuffix(stmt.Filename, ".csv") {
 		stmt.Format = "csv"
 	} else {
-		p.Errors = append(p.Errors, "unsupported file format")
+		p.addError("unsupported file format")
 		return nil
 	}
 
@@ -232,7 +247,7 @@ func (p *Parser) parseAppendStatement() *ast.AppendStatement {
 
 	// Check if we've reached EOF or no values provided
 	if p.curTokenIs(token.EOF) {
-		p.Errors = append(p.Errors, "incomplete APPEND statement: no values provided")
+		p.addError("incomplete APPEND statement: no values provided")
 		return nil
 	}
 
@@ -252,7 +267,7 @@ func (p *Parser) parseAppendStatement() *ast.AppendStatement {
 	}
 
 	if len(stmt.Values) == 0 {
-		p.Errors = append(p.Errors, "WARN: no values to append")
+		p.addError("WARN: no values to append")
 		return nil
 	}
 
@@ -451,7 +466,7 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 	value, err := strconv.ParseInt(p.curToken.Literal, 0, 64)
 	if err != nil {
 		msg := fmt.Sprintf("could not parse %q as integer", p.curToken.Literal)
-		p.Errors = append(p.Errors, msg)
+		p.addError(msg)
 		return nil
 	}
 	lit.Value = value
@@ -563,7 +578,7 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf("expected next token to be %s, got %s instead", t, p.peekToken.Type)
-	p.Errors = append(p.Errors, msg)
+	p.addError(msg)
 }
 
 func (p *Parser) peekPrecedence() int {
@@ -580,10 +595,6 @@ func (p *Parser) curPrecedence() int {
 	}
 	return LOWEST
 }
-
-// func (p *Parser) Errors() []string {
-// return p.errors
-// }
 
 /*
 *
@@ -607,7 +618,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	// 1. 🏁🏁🏁 Parse row
 	if p.curToken.Type != token.ROW {
 		errMsg := fmt.Sprintf("READ: expected first modifier key to be ROW, got %s", p.curToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -618,7 +629,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 	if p.curToken.Type != token.INT && p.curToken.Type != token.ASTERISK {
 		errMsg := fmt.Sprintf("READ: expected first modifier value to be INT or ASTERISK, got %s", p.curToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -634,7 +645,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		num, err := strconv.Atoi(p.curToken.Literal)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error converting string to int: %v", err)
-			p.Errors = append(p.Errors, errMsg)
+			p.addError(errMsg)
 			return ast.LocationExpression{
 				RowIndex: -1,
 				ColIndex: "",
@@ -660,7 +671,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	// return error if not "col"
 	if !p.curTokenIs(token.COL) && !p.curTokenIs(token.WHERE) {
 		errMsg := fmt.Sprintf("READ: expected second modifier to be COL or WHERE, got %s", p.peekToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		// reject complete statement, don't process rowIndex even when passed correctly
 		// csvlang mandates complete statement to be syntactically correct
 		return ast.LocationExpression{
@@ -682,7 +693,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 		if !p.peekTokenIs(token.EOF) && !p.peekTokenIs(token.WHERE) {
 			errMsg := fmt.Sprintf("READ: expected WHERE token to follow COL, got %s", p.peekToken.Type)
-			p.Errors = append(p.Errors, errMsg)
+			p.addError(errMsg)
 			return ast.LocationExpression{
 				RowIndex: -1,
 				ColIndex: "",
@@ -701,7 +712,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
 	if p.curToken.Type != token.IDENT {
 		errMsg := fmt.Sprintf("READ: expected column name to be IDENT, got %s", p.curToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -717,7 +728,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		p.curToken.Type != token.LT &&
 		p.curToken.Type != token.GT {
 		errMsg := fmt.Sprintf("READ: expected operator to be one of [EQ, NOT_EQ, LT, GT] got %s", p.curToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -730,7 +741,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 	// fmt.Printf("[parseLocationExpression] curTken: %s, %s\n", p.curToken.Type, p.curToken.Literal)
 	if p.curToken.Type != token.STRING && p.curToken.Type != token.INT {
 		errMsg := fmt.Sprintf("READ: expected value to be either STRING or INT, got %s", p.curToken.Type)
-		p.Errors = append(p.Errors, errMsg)
+		p.addError(errMsg)
 		return ast.LocationExpression{
 			RowIndex: -1,
 			ColIndex: "",
@@ -762,5 +773,5 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("no prefix parse function for %s found", t)
-	p.Errors = append(p.Errors, msg)
+	p.addError(msg)
 }
