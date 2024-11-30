@@ -216,6 +216,96 @@ var builtins = map[string]*object.Builtin{
 			return nil
 		},
 	},
+	"sum": &object.Builtin{
+		Fn: func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments: got=%d, want=1", len(args))
+			}
+
+			// Check if argument is array
+			arr, ok := args[0].(*object.Array)
+			if !ok {
+				return newError("argument must be ARRAY, got %s", args[0].Type())
+			}
+
+			// Calculate sum
+			sum := int64(0)
+			for _, elem := range arr.Elements {
+				// Ensure each element is integer
+				integer, ok := elem.(*object.Integer)
+				if !ok {
+					return newError("array elements must be INTEGER, got %s", elem.Type())
+				}
+				sum += integer.Value
+			}
+
+			return &object.Integer{Value: sum}
+		},
+	},
+	"avg": &object.Builtin{
+		Fn: func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments: got=%d, want=1", len(args))
+			}
+
+			// Check if argument is array
+			arr, ok := args[0].(*object.Array)
+			if !ok {
+				return newError("argument must be ARRAY, got %s", args[0].Type())
+			}
+
+			// Handle empty array
+			if len(arr.Elements) == 0 {
+				return newError("cannot calculate average of empty array")
+			}
+
+			// Calculate sum and validate elements
+			sum := int64(0)
+			for _, elem := range arr.Elements {
+				// Handle both integer and float inputs
+				switch num := elem.(type) {
+				case *object.Integer:
+					sum += int64(num.Value)
+				default:
+					return newError("array elements must be numeric, got %s", elem.Type())
+				}
+			}
+
+			// Calculate average
+			avg := sum / int64(len(arr.Elements))
+			return &object.Integer{Value: avg}
+		},
+	},
+	"count": &object.Builtin{
+		Fn: func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments: got=%d, want=1", len(args))
+			}
+
+			switch arg := args[0].(type) {
+			case *object.Array:
+				// If empty array, return 0
+				if len(arg.Elements) == 0 {
+					return &object.Integer{Value: 0}
+				}
+
+				// If first element is array, it's 2D - return number of rows
+				if _, ok := arg.Elements[0].(*object.Array); ok {
+					return &object.Integer{Value: int64(len(arg.Elements))}
+				}
+
+				// For 1D array, return length
+				return &object.Integer{Value: int64(len(arg.Elements))}
+
+			case *object.CSV:
+				// Return number of rows in CSV
+				return &object.Integer{Value: int64(len(arg.Rows))}
+
+			default:
+				return newError("argument must be ARRAY or CSV, got %s", args[0].Type())
+			}
+		},
+	},
 }
 
 // object.CSV is our primary data type; it's best to implicitly convert the data type
