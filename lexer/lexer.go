@@ -9,10 +9,16 @@ type Lexer struct {
 	position     int
 	readPosition int
 	ch           byte
+	Line         int // current line number
+	Column       int // current column number
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input}
+	l := &Lexer{
+		input:  input,
+		Line:   1,
+		Column: 1,
+	}
 	l.readChar()
 	return l
 }
@@ -25,6 +31,14 @@ func (l *Lexer) readChar() {
 	}
 	l.position = l.readPosition
 	l.readPosition += 1
+
+	// Track line and column numbers
+	if l.ch == '\n' {
+		l.Line++
+		l.Column = 1
+	} else {
+		l.Column++
+	}
 }
 
 func (l *Lexer) readComment() token.Token {

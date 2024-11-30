@@ -188,11 +188,11 @@ const MONKEY_FACE = `   			__,__
 				    '-----'
 `
 
-func printParserErrors(out io.Writer, errors []string) {
+func printParserErrors(out io.Writer, errors []*parser.ParserError) {
 	io.WriteString(out, MONKEY_FACE)
 	io.WriteString(out, "Woops! We ran into some monkey business here!\n")
 	io.WriteString(out, " parser errors:\n")
-	for _, msg := range errors {
-		io.WriteString(out, "\t"+msg+"\n")
+	for _, err := range errors {
+		fmt.Fprintf(out, "%+v\n", err) // Using %+v to get detailed error output
 	}
 }
