@@ -30,9 +30,11 @@ const (
 type Object interface {
 	Type() ObjectType
 	Inspect() string
+	// Add method to attempt conversion to CSV
+	ToCSV(env *Environment) (*CSV, error)
 }
 
-type BuiltinFunction func(args ...Object) Object
+type BuiltinFunction func(env *Environment, args ...Object) Object
 
 // Integer
 type Integer struct {
@@ -41,6 +43,33 @@ type Integer struct {
 
 func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
+func (i *Integer) ToCSV(env *Environment) (*CSV, error) {
+	// Get headers from environment if present
+	var header string
+	var columnType ColumnType
+	if csvObj, ok := env.Get("csv"); ok {
+		currentCSV := csvObj.(*CSV)
+		if len(currentCSV.Headers) > 0 {
+			header = currentCSV.Headers[0]
+			columnType = currentCSV.ColumnTypes[0]
+			// Validate type compatibility
+			if columnType.DataType != INTEGER_OBJ && columnType.DataType != STRING_OBJ {
+				return nil, fmt.Errorf("type mismatch: cannot convert INTEGER to %s", columnType.DataType)
+			}
+		}
+	}
+
+	if header == "" {
+		header = "col1"
+		columnType = ColumnType{DataType: INTEGER_OBJ}
+	}
+
+	return &CSV{
+		Headers:     []string{header},
+		ColumnTypes: []ColumnType{columnType},
+		Rows:        []map[string]string{{header: i.Inspect()}},
+	}, nil
+}
 
 // String
 type String struct {
@@ -49,6 +78,28 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+func (s *String) ToCSV(env *Environment) (*CSV, error) {
+	var header string
+	var columnType ColumnType
+	if csvObj, ok := env.Get("csv"); ok {
+		currentCSV := csvObj.(*CSV)
+		if len(currentCSV.Headers) > 0 {
+			header = currentCSV.Headers[0]
+			columnType = currentCSV.ColumnTypes[0]
+		}
+	}
+
+	if header == "" {
+		header = "col1"
+		columnType = ColumnType{DataType: STRING_OBJ}
+	}
+
+	return &CSV{
+		Headers:     []string{header},
+		ColumnTypes: []ColumnType{columnType},
+		Rows:        []map[string]string{{header: s.Value}},
+	}, nil
+}
 
 // Bool
 type Boolean struct {
@@ -57,12 +108,40 @@ type Boolean struct {
 
 func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
 func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) ToCSV(env *Environment) (*CSV, error) {
+	var header string
+	var columnType ColumnType
+	if csvObj, ok := env.Get("csv"); ok {
+		currentCSV := csvObj.(*CSV)
+		if len(currentCSV.Headers) > 0 {
+			header = currentCSV.Headers[0]
+			columnType = currentCSV.ColumnTypes[0]
+			if columnType.DataType != BOOLEAN_OBJ && columnType.DataType != STRING_OBJ {
+				return nil, fmt.Errorf("type mismatch: cannot convert BOOLEAN to %s", columnType.DataType)
+			}
+		}
+	}
+
+	if header == "" {
+		header = "col1"
+		columnType = ColumnType{DataType: BOOLEAN_OBJ}
+	}
+
+	return &CSV{
+		Headers:     []string{header},
+		ColumnTypes: []ColumnType{columnType},
+		Rows:        []map[string]string{{header: b.Inspect()}},
+	}, nil
+}
 
 // Null object
 type Null struct{}
 
 func (n *Null) Type() ObjectType { return NULL_OBJ }
 func (n *Null) Inspect() string  { return "null" }
+func (n *Null) ToCSV(env *Environment) (*CSV, error) {
+	return nil, fmt.Errorf("cannot convert null to CSV")
+}
 
 // Return
 type ReturnValue struct {
@@ -71,6 +150,9 @@ type ReturnValue struct {
 
 func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
 func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
+func (rv *ReturnValue) ToCSV(env *Environment) (*CSV, error) {
+	return nil, fmt.Errorf("cannot convert return value to CSV")
+}
 
 // Error object
 type Error struct {
@@ -79,6 +161,9 @@ type Error struct {
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
 func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
+func (e *Error) ToCSV(env *Environment) (*CSV, error) {
+	return nil, fmt.Errorf("cannot convert error to CSV: %s", e.Message)
+}
 
 // Built-in functionality to our lang which the host lang (Go) doesn't provide
 type Builtin struct {
@@ -87,6 +172,9 @@ type Builtin struct {
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 func (b *Builtin) Inspect() string  { return "builtin function" }
+func (b *Builtin) ToCSV(env *Environment) (*CSV, error) {
+	return nil, fmt.Errorf("cannot convert builtin function to CSV")
+}
 
 // Function object
 type Function struct {
@@ -109,6 +197,9 @@ func (f *Function) Inspect() string {
 	out.WriteString(f.Body.String())
 	out.WriteString("\n}")
 	return out.String()
+}
+func (f *Function) ToCSV(env *Environment) (*CSV, error) {
+	return nil, fmt.Errorf("cannot convert function to CSV")
 }
 
 // Stores data type info about columns in a CSV
@@ -182,60 +273,8 @@ func (c *CSV) InferColumnTypes() {
 		}
 	}
 }
-
-type CSVRowsAndCols struct {
-	Value [][]string
-}
-
-func (c *CSVRowsAndCols) Type() ObjectType { return CSV_ROW }
-func (c *CSVRowsAndCols) Inspect() string {
-	var builder strings.Builder
-	for _, r := range c.Value {
-		for j, c := range r {
-			builder.WriteString(c)
-			if j < len(r)-1 {
-				builder.WriteString(",")
-			}
-		}
-		builder.WriteString("\n")
-	}
-
-	return builder.String()
-}
-
-type CSVRow struct {
-	Row []string
-}
-
-func (c *CSVRow) Type() ObjectType { return CSV_ROW }
-func (c *CSVRow) Inspect() string {
-	// Create a builder to efficiently build the string
-	var builder strings.Builder
-
-	// Build each row of data
-	// for key, value := range c.Row {
-	// builder.WriteString(key)
-	// 	builder.WriteString(": ")
-	// 	builder.WriteString(value)
-	// 	builder.WriteString("\n") // Adds a newline for each pair, you can change it to any separator you want
-	// }
-	// builder.WriteString("\n")
-
-	for _, r := range c.Row {
-		builder.WriteString(r)
-		builder.WriteString("\n")
-	}
-
-	return builder.String()
-}
-
-type CSVVal struct {
-	Value string
-}
-
-func (c *CSVVal) Type() ObjectType { return CSV_VAL }
-func (c *CSVVal) Inspect() string {
-	return c.Value
+func (csv *CSV) ToCSV(env *Environment) (*CSV, error) {
+	return csv, nil // Already a CSV
 }
 
 // Array object
@@ -254,4 +293,190 @@ func (a *Array) Inspect() string {
 	out.WriteString(strings.Join(elements, ", "))
 	out.WriteString("]")
 	return out.String()
+}
+func (arr *Array) ToCSV(env *Environment) (*CSV, error) {
+	return ArrayToCSV(arr, env)
+}
+
+// Array to CSV utils
+func ArrayToCSV(arr *Array, env *Environment) (*CSV, error) {
+	// Get current CSV headers if present in environment
+	var headers []string
+	var columnTypes []ColumnType
+
+	if csvObj, ok := env.Get("csv"); ok {
+		currentCSV := csvObj.(*CSV)
+		headers = currentCSV.Headers
+		columnTypes = currentCSV.ColumnTypes
+	}
+
+	// Handle empty array
+	if len(arr.Elements) == 0 {
+		if headers == nil {
+			return &CSV{
+				Headers:     []string{},
+				ColumnTypes: []ColumnType{},
+				Rows:        []map[string]string{},
+			}, nil
+		}
+		return &CSV{
+			Headers:     headers,
+			ColumnTypes: columnTypes,
+			Rows:        []map[string]string{},
+		}, nil
+	}
+
+	// Determine if it's 1D or 2D array
+	isOneD := true
+	if firstElem, ok := arr.Elements[0].(*Array); ok {
+		isOneD = false
+		// Validate all elements are arrays of same length
+		length := len(firstElem.Elements)
+		for _, elem := range arr.Elements {
+			if row, ok := elem.(*Array); !ok || len(row.Elements) != length {
+				return nil, fmt.Errorf("inconsistent row lengths in 2D array")
+			}
+		}
+	}
+
+	if isOneD {
+		return oneDArrayToCSV(arr, headers, columnTypes)
+	}
+	return twoDArrayToCSV(arr, headers, columnTypes)
+}
+
+func oneDArrayToCSV(arr *Array, existingHeaders []string, existingTypes []ColumnType) (*CSV, error) {
+	var headers []string
+	var columnTypes []ColumnType
+
+	// Use existing headers if available, otherwise generate
+	if existingHeaders != nil {
+		// Validate array length matches header count
+		if len(arr.Elements) != len(existingHeaders) {
+			return nil, fmt.Errorf("array length %d does not match expected column count %d",
+				len(arr.Elements), len(existingHeaders))
+		}
+		headers = existingHeaders
+		columnTypes = existingTypes
+	} else {
+		// Generate headers (col1, col2, ...)
+		headers = make([]string, len(arr.Elements))
+		columnTypes = make([]ColumnType, len(arr.Elements))
+		for i := range arr.Elements {
+			headers[i] = fmt.Sprintf("col%d", i+1)
+			columnTypes[i] = InferType(arr.Elements[i])
+		}
+	}
+
+	// Create single row
+	row := make(map[string]string)
+	for i, elem := range arr.Elements {
+		// Validate type if using existing column types
+		if existingTypes != nil {
+			if !isCompatibleType(elem, columnTypes[i]) {
+				return nil, fmt.Errorf("type mismatch in column %s: expected %s, got %s",
+					headers[i], columnTypes[i].DataType, elem.Type())
+			}
+		}
+		row[headers[i]] = elem.Inspect()
+	}
+
+	return &CSV{
+		Headers:     headers,
+		ColumnTypes: columnTypes,
+		Rows:        []map[string]string{row},
+	}, nil
+}
+
+func twoDArrayToCSV(arr *Array, existingHeaders []string, existingTypes []ColumnType) (*CSV, error) {
+	firstRow := arr.Elements[0].(*Array)
+
+	var headers []string
+	var columnTypes []ColumnType
+
+	// Use existing headers if available, otherwise generate
+	if existingHeaders != nil {
+		// Validate row length matches header count
+		if len(firstRow.Elements) != len(existingHeaders) {
+			return nil, fmt.Errorf("row length %d does not match expected column count %d",
+				len(firstRow.Elements), len(existingHeaders))
+		}
+		headers = existingHeaders
+		columnTypes = existingTypes
+	} else {
+		// Generate headers from first row length
+		headers = make([]string, len(firstRow.Elements))
+		columnTypes = make([]ColumnType, len(firstRow.Elements))
+		for i := range firstRow.Elements {
+			headers[i] = fmt.Sprintf("col%d", i+1)
+		}
+	}
+
+	// Create rows and validate/infer types
+	rows := make([]map[string]string, len(arr.Elements))
+
+	for i, rowObj := range arr.Elements {
+		row := rowObj.(*Array)
+		rowMap := make(map[string]string)
+
+		for j, elem := range row.Elements {
+			if existingTypes != nil {
+				// Validate against existing types
+				if !isCompatibleType(elem, columnTypes[j]) {
+					return nil, fmt.Errorf("type mismatch in row %d, column %s: expected %s, got %s",
+						i, headers[j], columnTypes[j].DataType, elem.Type())
+				}
+			} else if i == 0 {
+				// Infer types from first row if no existing types
+				columnTypes[j] = InferType(elem)
+			} else {
+				// Validate against inferred types
+				if !isCompatibleType(elem, columnTypes[j]) {
+					return nil, fmt.Errorf("type mismatch in row %d, column %s: expected %s, got %s",
+						i, headers[j], columnTypes[j].DataType, elem.Type())
+				}
+			}
+			rowMap[headers[j]] = elem.Inspect()
+		}
+		rows[i] = rowMap
+	}
+
+	return &CSV{
+		Headers:     headers,
+		ColumnTypes: columnTypes,
+		Rows:        rows,
+	}, nil
+}
+
+func InferType(obj Object) ColumnType {
+	switch obj.(type) {
+	case *Integer:
+		return ColumnType{DataType: INTEGER_OBJ}
+	case *String:
+		return ColumnType{DataType: STRING_OBJ}
+	case *Boolean:
+		return ColumnType{DataType: BOOLEAN_OBJ}
+	default:
+		return ColumnType{DataType: STRING_OBJ} // default to string
+	}
+}
+
+func isCompatibleType(value Object, colType ColumnType) bool {
+	switch colType.DataType {
+	case INTEGER_OBJ:
+		_, ok := value.(*Integer)
+		return ok
+	case STRING_OBJ:
+		_, ok := value.(*String)
+		return ok
+	case BOOLEAN_OBJ:
+		_, ok := value.(*Boolean)
+		return ok
+	default:
+		return true // string can hold anything
+	}
+}
+
+func newError(format string, a ...interface{}) *Error {
+	return &Error{Message: fmt.Sprintf(format, a...)}
 }

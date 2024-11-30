@@ -78,7 +78,7 @@ read row * col name where age > 18;
 <!-- 2. fills null/empty fields -->
 <!-- 3. removes exact duplicate rows -->
 
-<!-- "save" keyword to save the csv as json or csv -->
+<!-- [DONE] "save" keyword to save the csv as json or csv -->
 <!--1. save -->
 <!--2. save as filtered.(csv|json)  -->
 <!-- 3. save rows -->
