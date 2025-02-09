@@ -1,10 +1,12 @@
 package parser
 
 import (
-	"csvlang/ast"
-	"csvlang/lexer"
 	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/Rishabh570/csvlang/ast"
+	"github.com/Rishabh570/csvlang/lexer"
 )
 
 func TestLoadStatement(t *testing.T) {
@@ -42,6 +44,234 @@ func TestLoadStatement(t *testing.T) {
 			}
 		default:
 			t.Errorf("type of exp not handled. got=%T", exp)
+		}
+	}
+}
+
+func TestReadStatement(t *testing.T) {
+	tests := []struct {
+		input           string
+		wantError       string
+		wantColIndex    string
+		wantFilterField string
+		wantFilterOp    string
+		wantFilterValue string
+	}{
+		// must have semicolon: `read row 0;`
+		{
+			`
+				let val = read row 0
+				val
+			`,
+			"READ: expected second modifier to be COL or WHERE",
+			"",
+			"",
+			"",
+			"",
+		},
+		// adding a semicolon should make it pass
+		{
+			`
+				read row 0;
+			`,
+			"",
+			"",
+			"",
+			"",
+			"",
+		},
+		{
+			`
+			 	read row 0 col name;
+			`,
+			"",
+			"name",
+			"",
+			"",
+			"",
+		},
+		{
+			`
+			 	read row 0 col name where age > 18;
+			`,
+			"",
+			"name",
+			"age",
+			">",
+			"18",
+		},
+		{
+			`
+			 	read row *;
+			`,
+			"",
+			"",
+			"",
+			"",
+			"",
+		},
+		{
+			`
+			 	read row 0 col * where age > 18;
+			`,
+			"",
+			"*",
+			"age",
+			">",
+			"18",
+		},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+
+		if tt.wantError != "" {
+			if len(p.Errors) == 0 {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(p.Errors[0].Message, tt.wantError) {
+				t.Fatalf("expected error %q, got %q", tt.wantError, p.Errors[0])
+			}
+		} else {
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+					len(program.Statements))
+			}
+
+			stmt, ok := program.Statements[0].(*ast.ReadStatement)
+			if !ok {
+				t.Fatalf("program.Statements[0] is not ast.ReadStatement. got=%T",
+					program.Statements[0])
+			}
+
+			// assert if stmt.Token is a Read token
+			if stmt.Token.Type != "READ" {
+				t.Errorf("stmt.Token.Type not 'READ'. got=%q", stmt.Token.Type)
+			}
+
+			// -2 indicates asterisk as row index, which is a wildcard index and valid
+			if stmt.Location.RowIndex != -2 && stmt.Location.RowIndex < 0 {
+				t.Errorf("stmt.Location.RowIndex is negative. got=%d", stmt.Location.RowIndex)
+			}
+
+			if tt.wantColIndex != "" && tt.wantColIndex != stmt.Location.ColIndex {
+				t.Errorf("stmt.Location.ColIndex is not %q. got=%q", tt.wantColIndex, stmt.Location.ColIndex)
+			}
+
+			if tt.wantFilterField != "" && tt.wantFilterField != stmt.Location.Filter.ColumnName {
+				t.Errorf("stmt.Filter.Field is not %q. got=%q", tt.wantFilterField, stmt.Location.Filter.ColumnName)
+			}
+
+			if tt.wantFilterOp != "" && tt.wantFilterOp != stmt.Location.Filter.Operator {
+				t.Errorf("stmt.Filter.Op is not %q. got=%q", tt.wantFilterOp, stmt.Location.Filter.Operator)
+			}
+
+			if tt.wantFilterValue != "" && tt.wantFilterValue != stmt.Location.Filter.Value.String() {
+				t.Errorf("stmt.Filter.Value is not %q. got=%q", tt.wantFilterValue, stmt.Location.Filter.Value.String())
+			}
+		}
+	}
+}
+
+func TestSaveStatement(t *testing.T) {
+	tests := []struct {
+		input        string
+		wantError    string
+		wantSource   string
+		wantFilename string
+		wantFormat   string
+	}{
+		// should work without semicolon
+		{
+			`
+				save as output.csv
+			`,
+			"",
+			"",
+			"output.csv",
+			"csv",
+		},
+		// having semicolon is also fine
+		{
+			`
+				save as output.csv;
+			`,
+			"",
+			"",
+			"output.csv",
+			"csv",
+		},
+		{
+			`
+				save as output.json;
+			`,
+			"",
+			"",
+			"output.json",
+			"json",
+		},
+		{
+			`
+				save myrows as output.csv;
+			`,
+			"",
+			"myrows",
+			"output.csv",
+			"csv",
+		},
+		{
+			`
+				save myrows as output.json;
+			`,
+			"",
+			"myrows",
+			"output.json",
+			"json",
+		},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+
+		if tt.wantError != "" {
+			if len(p.Errors) == 0 {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(p.Errors[0].Message, tt.wantError) {
+				t.Fatalf("expected error %q, got %q", tt.wantError, p.Errors[0])
+			}
+		} else {
+			if len(program.Statements) != 1 {
+				t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+					len(program.Statements))
+			}
+
+			stmt, ok := program.Statements[0].(*ast.SaveStatement)
+			if !ok {
+				t.Fatalf("program.Statements[0] is not ast.SaveStatement. got=%T",
+					program.Statements[0])
+			}
+
+			// assert if stmt.Token is a Save token
+			if stmt.Token.Type != "SAVE" {
+				t.Errorf("stmt.Token.Type not 'SAVE'. got=%q", stmt.Token.Type)
+			}
+
+			if tt.wantSource != "" && tt.wantSource != stmt.Source.String() {
+				t.Errorf("stmt.Source is not %q. got=%q", tt.wantSource, stmt.Source)
+			}
+
+			if tt.wantFilename != "" && tt.wantFilename != stmt.Filename {
+				t.Errorf("stmt.Filename is not %q. got=%q", tt.wantFilename, stmt.Filename)
+			}
+
+			if tt.wantFormat != "" && tt.wantFormat != stmt.Format {
+				t.Errorf("stmt.Format is not %q. got=%q", tt.wantFormat, stmt.Format)
+			}
 		}
 	}
 }

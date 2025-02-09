@@ -1,3 +1,13 @@
+// token package is used to define the token types and the Token struct.
+//
+// The TokenType type is a string that represents the type of a token.
+// The Token struct has two fields: Type and Literal.
+//
+// 1. Type is the type of the token, and
+//
+// 2. Literal is the actual value of the token.
+//
+// csvlang has some reserved keywords and the keywords map is used to store them.
 package token
 
 import (
@@ -7,13 +17,13 @@ import (
 type TokenType string
 
 const (
-	ILLEGAL = "ILLEGAL"
-	EOF     = "EOF"
+	ILLEGAL = "ILLEGAL" // unknown token
+	EOF     = "EOF"     // end of file
 
 	// Identifiers + literals
-	IDENT  = "IDENT" // add, foobar, x, y, ...
-	INT    = "INT"   // 1343456
-	STRING = "STRING"
+	IDENT  = "IDENT"  // add, foobar, x, y, ...
+	INT    = "INT"    // 1343456
+	STRING = "STRING" // "foobar"
 
 	// Operators
 	ASSIGN   = "="
@@ -28,7 +38,7 @@ const (
 	NOT_EQ   = "!="
 
 	// Delimiters
-	COMMA     = ","
+	COMMA     = "," // acts as a delimiter in arrays
 	SEMICOLON = ";"
 
 	LPAREN   = "("
@@ -42,53 +52,61 @@ const (
 	SINGLE_LINE_COMMENT = "#"
 
 	// Keywords
-	LOAD     = "LOAD"
-	READ     = "READ"
-	APPEND   = "APPEND"
-	UPDATE   = "UPDATE"
-	DELETE   = "DELETE"
+	LOAD                 = "LOAD"               // load csv file
+	READ                 = "READ"               // read data from the loaded csv file
+	ROW                  = "ROW"                // read particular rows from the loaded csv file
+	COL                  = "COL"                // read particular columns from the loaded csv rows
+	WHERE                = "WHERE"              // filter rows based on a condition
+	READ_FILTER_LOCATION = "ReadFilterLocation" // used in read statements to specify the location of the data
+
 	FUNCTION = "FUNCTION"
 	LET      = "LET"
 	TRUE     = "TRUE"
 	FALSE    = "FALSE"
 	IF       = "IF"
+	FOR      = "FOR"
+	IN       = "IN"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
 	SAVE     = "SAVE"
 	AS       = "AS" // used in "save rows as filtered.csv" statements
-
-	ROW   = "ROW"
-	COL   = "COL"
-	WHERE = "WHERE"
 )
 
+// Token struct represents a token in csvlang
 type Token struct {
 	Type    TokenType
 	Literal string
 }
 
+// keywords is a map of reserved keywords in csvlang
 var keywords = map[string]TokenType{
-	"load":   LOAD,
-	"read":   READ,
-	"append": APPEND,
-	"update": UPDATE,
-	"delete": DELETE,
-	"row":    ROW,
-	"col":    COL,
-	"where":  "WHERE",
-	"fn":     FUNCTION,
-	"let":    LET,
-	"true":   TRUE,
-	"false":  FALSE,
-	"if":     IF,
-	"else":   ELSE,
-	"return": RETURN,
-	"save":   SAVE,
-	"as":     AS,
+	"load":               LOAD,
+	"read":               READ,
+	"row":                ROW,
+	"col":                COL,
+	"where":              WHERE,
+	"ReadFilterLocation": READ_FILTER_LOCATION,
+	"fn":                 FUNCTION,
+	"let":                LET,
+	"true":               TRUE,
+	"false":              FALSE,
+	"if":                 IF,
+	"else":               ELSE,
+	"return":             RETURN,
+	"save":               SAVE,
+	"as":                 AS,
+	"for":                FOR,
+	"in":                 IN,
 }
 
+// LookupIdent checks if the given identifier is a keyword
+// defaults to IDENT if not a keyword
+//
+// Example:
+//
+//	LookupIdent("fn") // returns FUNCTION
+//	LookupIdent("abc") // returns IDENT
 func LookupIdent(ident string) TokenType {
-	// fmt.Println("[LookupIdent] ident: ", ident)
 	// make keyword matching case-insensitive
 	// i.e., load and LOAD will mean the same thing
 	lowercaseIdent := strings.ToLower(ident)

@@ -1,13 +1,18 @@
+// evaluator package is responsible for evaluating the AST nodes and returning the result of the evaluation.
+//
+// It uses the object package to create and return the evaluated objects.
+// The evaluator package is the heart of the interpreter, where the actual evaluation of the AST nodes happens.
 package evaluator
 
 import (
-	"csvlang/ast"
-	"csvlang/object"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/Rishabh570/csvlang/ast"
+	"github.com/Rishabh570/csvlang/object"
 )
 
 var (
@@ -16,24 +21,23 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
+// Eval function is the entry point to the evaluator package.
+// It takes an AST node and an environment object as input and returns the evaluated object.
+// The environment object is used to store and retrieve variables and their values.
+// The Eval function is a recursive function that evaluates the AST nodes and returns the evaluated object.
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
 	// Statements
 	case *ast.Program:
 		return evalProgram(node.Statements, env)
 	case *ast.ExpressionStatement:
-		fmt.Printf("[Eval] expr stmt run for %s\n", node.String())
 		return Eval(node.Expression, env)
 	case *ast.LoadStatement:
 		return evalLoadStatement(node, env)
 	case *ast.ReadStatement:
-		fmt.Printf("read stmt...")
 		return evalReadStatement(node.ReadExpression, env)
 	case *ast.ReadExpression:
-		fmt.Printf("read expr...")
 		return evalReadStatement(node, env)
-	case *ast.AppendStatement:
-		return evalAppendStatement(node, env)
 	case *ast.SaveStatement:
 		return evalSaveStatement(node, env)
 	// Expressions
@@ -71,15 +75,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return &object.ReturnValue{Value: val}
 	case *ast.LetStatement:
-		fmt.Printf("[Eval] Evaluating LET stmt, nodeVal: %v\n", node.Value)
 		val := Eval(node.Value, env)
-		fmt.Printf("[Eval] LET val: %v\n", val)
 		if isError(val) {
 			return val
 		}
 		env.Set(node.Name.Value, val)
 	case *ast.Identifier:
-		fmt.Printf("[Eval] identifier run for %s %s\n", node.Value, node.String())
 		return evalIdentifier(node, env)
 	case *ast.AssignmentStatement:
 		val := Eval(node.Value, env)
@@ -97,11 +98,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if len(elements) == 1 && isError(elements[0]) {
 			return elements[0]
 		}
-		fmt.Printf("[Eval] array literal: %v\n", elements)
 		return &object.Array{Elements: elements}
 
 	case *ast.IndexExpression:
-		fmt.Printf("[Eval] index expr: %+v\n", node)
 		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
@@ -110,7 +109,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(index) {
 			return index
 		}
-		fmt.Printf("[Eval] index expr: left: %v, index: %v\n", left, index)
 		return evalIndexExpression(left, index)
 	case *ast.FunctionLiteral:
 		params := node.Parameters
@@ -126,10 +124,58 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return args[0]
 		}
 		return applyFunction(function, args, env)
+	case *ast.ForLoopStatement:
+		return evalForLoopStatement(node.ForLoopExpression, env)
+	case *ast.ForLoopExpression:
+		return evalForLoopStatement(node, env)
+	case *ast.IndexAssignmentExpression:
+		return evalIndexAssignmentExpression(node, env)
+
 	default:
 		fmt.Printf("[Eval] no match: %+v\n", node.String())
 	}
 	return nil
+}
+
+func evalIndexAssignmentExpression(node *ast.IndexAssignmentExpression, env *object.Environment) object.Object {
+	// Evaluate the array
+	array := Eval(node.Left.Left, env)
+	if isError(array) {
+		return array
+	}
+
+	// Evaluate the index
+	index := Eval(node.Left.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	// Evaluate the value to assign
+	value := Eval(node.Value, env)
+	if isError(value) {
+		return value
+	}
+
+	// Check if we're working with an array
+	arr, ok := array.(*object.Array)
+	if !ok {
+		return newError("index assignment not supported for type: %s", array.Type())
+	}
+
+	// Check if index is integer
+	idx, ok := index.(*object.Integer)
+	if !ok {
+		return newError("array index must be INTEGER, got %s", index.Type())
+	}
+
+	// Check bounds
+	if idx.Value < 0 || idx.Value >= int64(len(arr.Elements)) {
+		return newError("array index out of bounds: %d", idx.Value)
+	}
+
+	// Update array element
+	arr.Elements[idx.Value] = value
+	return value
 }
 
 func evalSaveStatement(node *ast.SaveStatement, env *object.Environment) object.Object {
@@ -215,93 +261,51 @@ func saveAsJSON(csv *object.CSV, filename string) object.Object {
 	return NULL
 }
 
-func evalAppendStatement(node *ast.AppendStatement, env *object.Environment) object.Object {
-	csvObj, ok := env.Get("csv")
-	if !ok {
-		return newError("no CSV file loaded")
+func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) object.Object {
+	iterableObj := Eval(fl.Iterable, env)
+	if isError(iterableObj) {
+		return iterableObj
 	}
 
-	csvData := csvObj.(*object.CSV)
-
-	// Validate number of values matches headers
-	if len(node.Values) != len(csvData.Headers) {
-		return newError("wrong number of values: expected %d, got %d", len(csvData.Headers), len(node.Values))
+	var elements []object.Object
+	switch iterable := iterableObj.(type) {
+	case *object.Array:
+		elements = iterable.Elements
+	default:
+		return newError("for loop iterable must be ARRAY, got %s", iterableObj.Type())
 	}
 
-	// If column types not inferred yet, do it now
-	// it should already be inferred when the CSV is loaded though
-	if len(csvData.ColumnTypes) == 0 {
-		csvData.InferColumnTypes()
-	}
+	for i, element := range elements {
+		// Create new scope for each iteration
+		loopEnv := object.NewEnclosedEnvironment(env)
 
-	// ========================
-	// Validate types of new values and append to rows
-	// ========================
-	newRow := make(map[string]string)
-	for i, value := range node.Values {
-		evaluated := Eval(value, env)
+		// Bind index and element
+		loopEnv.Set(fl.IndexName.Value, &object.Integer{Value: int64(i)})
+		loopEnv.Set(fl.ElementName.Value, element)
 
-		if evaluated.Type() != csvData.ColumnTypes[i].DataType {
-			return newError("type mismatch for column %s: expected %s, got %s",
-				csvData.Headers[i], csvData.ColumnTypes[i].DataType, evaluated.Type())
-		}
+		fmt.Printf("[evalForLoopStatement] evaluating block statment: %+v\n", fl.Body)
+		// Evaluate body
+		Eval(fl.Body, loopEnv)
 
-		newRow[csvData.Headers[i]] = evaluated.Inspect()
-	}
-
-	// Append the new row
-	csvData.Rows = append(csvData.Rows, newRow)
-
-	// Store the updated CSV object in the environment
-	env.Set("csv", csvObj)
-
-	// ========================
-	// After successful validation and row creation, write to CSV file
-	// ========================
-
-	filename, ok := env.Get("filename")
-	if !ok {
-		return newError("no filename found in environment")
-	}
-	filenameStr := filename.(*object.String).Value
-
-	file, err := os.OpenFile(filenameStr, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return newError("could not open file for writing: %s", err)
-	}
-	defer file.Close()
-
-	// First ensure we're on a new line by checking last byte
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return newError("could not get file info: %s", err)
-	}
-
-	// If file is not empty and doesn't end with newline, add one
-	if fileInfo.Size() > 0 {
-		lastByte := make([]byte, 1)
-		if _, err := file.ReadAt(lastByte, fileInfo.Size()-1); err == nil {
-			if lastByte[0] != '\n' {
-				if _, err := file.WriteString("\n"); err != nil {
-					return newError("could not write newline: %s", err)
-				}
+		// Update original array if modified
+		if arr, ok := iterableObj.(*object.Array); ok {
+			if val, ok := loopEnv.Get(fl.ElementName.Value); ok {
+				fmt.Printf("[evalForLoopStatement] updating element: %+v\n", val.Inspect())
+				arr.Elements[i] = val
 			}
 		}
-	}
 
-	// Create CSV writer
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
+		// Copy any modified outer scope variables back to parent environment
+		for name, val := range loopEnv.GetStore() {
+			if _, exists := env.Get(name); exists {
+				fmt.Printf("[evalForLoopStatement] setting %s to %s\n", name, val.Inspect())
+				env.Set(name, val)
+			}
+		}
 
-	// Convert map to slice in correct header order
-	rowData := make([]string, len(csvData.Headers))
-	for i, header := range csvData.Headers {
-		rowData[i] = newRow[header]
-	}
-
-	// Write the new row
-	if err := writer.Write(rowData); err != nil {
-		return newError("could not write to file: %s", err)
+		// unset values from the loopEnv set in this iteration of the for loop
+		// loopEnv.Unset(fl.IndexName.Value)
+		// loopEnv.Unset(fl.ElementName.Value)
 	}
 
 	return NULL
@@ -347,7 +351,6 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 		return newError("could not read CSV headers: %s", err)
 	}
 
-	// TODO: @dev ddos magnet 👀
 	// Read all records
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -365,7 +368,6 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 	}
 
 	// Store loaded CSV data in evaluator's in-app memory
-	// TODO: is it a good idea that a language is storing computed results which can blow up in case of huge CSV data?
 	csvObj := &object.CSV{
 		Headers: headers,
 		Rows:    rows,
@@ -505,7 +507,6 @@ func extractColumns(rows []map[string]string, column string) *object.Array {
 }
 
 func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.Object {
-	fmt.Printf("[evalReadStatement] type: %s, lit: %s, row: %d, col: %s\n", rs.Token.Type, rs.Token.Literal, rs.Location.RowIndex, rs.Location.ColIndex)
 
 	// Retrieve stored CSV object
 	csv, ok := env.Get("csv")
@@ -590,7 +591,6 @@ func extendFunctionEnv(
 func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 	for _, statement := range stmts {
-		fmt.Println("evaluating stmt: ", statement.String())
 		result = Eval(statement, env)
 
 		switch result := result.(type) {
@@ -622,27 +622,6 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 	}
 }
 
-// func applyFunction(fn object.Object, args []object.Object) object.Object {
-// 	function, ok := fn.(*object.Function)
-// 	if !ok {
-// 		return newError("not a function: %s", fn.Type())
-// 	}
-// 	extendedEnv := extendFunctionEnv(function, args)
-// 	evaluated := Eval(function.Body, extendedEnv)
-// 	return unwrapReturnValue(evaluated)
-// }
-
-// func extendFunctionEnv(
-// 	fn *object.Function,
-// 	args []object.Object,
-// ) *object.Environment {
-// 	env := object.NewEnclosedEnvironment(fn.Env)
-// 	for paramIdx, param := range fn.Parameters {
-// 		env.Set(param.Value, args[paramIdx])
-// 	}
-// 	return env
-// }
-
 func unwrapReturnValue(obj object.Object) object.Object {
 	if returnValue, ok := obj.(*object.ReturnValue); ok {
 		return returnValue.Value
@@ -654,9 +633,7 @@ func evalIdentifier(
 	node *ast.Identifier,
 	env *object.Environment,
 ) object.Object {
-	fmt.Printf("[evalIdentifier] starting, node.Value: %s, node.String(): %s\n", node.Value, node.String())
 	if val, ok := env.Get(node.Value); ok {
-		fmt.Printf("[evalIdentifier] returning val: %s\n", val)
 		return val
 	}
 
@@ -780,9 +757,6 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	}
 }
 
-/*
-Error
-*/
 func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }

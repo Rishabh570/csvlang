@@ -1,9 +1,12 @@
 package evaluator
 
 import (
-	"csvlang/object"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/object"
 )
 
 var builtins = map[string]*object.Builtin{
@@ -196,8 +199,6 @@ var builtins = map[string]*object.Builtin{
 					return newError("argument must be CSV, got=%s", args[0].Type())
 				}
 
-				fmt.Printf("removing duplicates from the provided CSV object: %v\n", csv)
-
 				return removeDuplicates(csv)
 			}
 
@@ -207,8 +208,6 @@ var builtins = map[string]*object.Builtin{
 				if !ok {
 					return newError("argument must be CSV, got=%s", args[0].Type())
 				}
-
-				fmt.Printf("removing duplicates from the provided array: %v\n", csv)
 
 				return removeDuplicatesFrom2dArray(csv, env)
 			}
@@ -306,6 +305,46 @@ var builtins = map[string]*object.Builtin{
 			}
 		},
 	},
+	"fill_empty": &object.Builtin{
+		Fn: func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 3 {
+				return newError("wrong number of arguments: got=%d, want=3", len(args))
+			}
+
+			csv, ok := args[0].(*object.CSV)
+			if !ok {
+				return newError("argument must be CSV, got %s", args[0].Type())
+			}
+			newRows := make([]map[string]string, len(csv.Rows))
+
+			fieldValue, err := convertToString(args[2].Inspect())
+			if err != nil {
+				return newError(err.Error())
+			}
+
+			fieldName := args[1].Inspect()
+			for i, row := range csv.Rows {
+				newRow := make(map[string]string)
+				for _, header := range csv.Headers {
+					if header == fieldName && row[header] == "" {
+						newRow[header] = fieldValue
+					} else {
+						newRow[header] = row[header]
+					}
+				}
+				newRows[i] = newRow
+			}
+
+			modifiedCSV := &object.CSV{
+				Headers:     csv.Headers,
+				ColumnTypes: csv.ColumnTypes,
+				Rows:        newRows,
+			}
+			// save to env
+			env.Set("csv", modifiedCSV)
+			return modifiedCSV
+		},
+	},
 }
 
 // object.CSV is our primary data type; it's best to implicitly convert the data type
@@ -364,10 +403,8 @@ func removeDuplicatesFrom2dArray(arr *object.Array, env *object.Environment) *ob
 			key[i] = ele.Inspect()
 		}
 		rowKey := strings.Join(key, "|")
-		fmt.Printf("rowKey:: %s\n", rowKey)
 
 		if !seen[rowKey] {
-			fmt.Printf("setting rowKey: %s to true\n", rowKey)
 			seen[rowKey] = true
 
 			// Create row map for CSV
@@ -379,8 +416,6 @@ func removeDuplicatesFrom2dArray(arr *object.Array, env *object.Environment) *ob
 
 		}
 	}
-
-	fmt.Printf("uniqueRows: %+v\n", uniqueRows)
 
 	// Return new CSV object with unique rows
 	return &object.CSV{
@@ -448,4 +483,25 @@ func isCompatibleColumnType(target, source object.ColumnType) bool {
 		return true
 	}
 	return target.DataType == source.DataType
+}
+
+func getDataTypeOfFieldValue(csv *object.CSV, colName string) *object.ObjectType {
+	colTypes := csv.ColumnTypes
+	for _, colObj := range colTypes {
+		if colObj.Name == colName {
+			return &colObj.DataType
+		}
+	}
+	return nil
+}
+
+func convertToString(value any) (string, error) {
+	switch v := value.(type) {
+	case int:
+		return strconv.Itoa(v), nil
+	case string:
+		return v, nil
+	default:
+		return "", errors.New("unsupported type: only integers are supported")
+	}
 }

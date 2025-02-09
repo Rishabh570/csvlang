@@ -5,17 +5,20 @@ import (
 	"runtime"
 )
 
+// ParserError is an error type that is returned when a parsing error occurs.
 type ParserError struct {
-	Message string
-	Stack   []uintptr
-	Line    int
-	Column  int
+	Message string    // Parsing error message
+	Stack   []uintptr // Stack trace
+	Line    int       // Line number where the error occurred
+	Column  int       // Column number where the error occurred
 }
 
+// Error creates a new ParserError with the given message, line, column, and stack trace.
 func (e *ParserError) Error() string {
 	return fmt.Sprintf("%s at line %d, column %d", e.Message, e.Line, e.Column)
 }
 
+// Format formats the ParserError for printing.
 func (e *ParserError) Format(s fmt.State, verb rune) {
 	switch verb {
 	case 'v':

@@ -1,18 +1,29 @@
+// lexer package is responsible for tokenizing the input string.
+//
+// The lexer reads the input string character by character and returns tokens based on the characters it reads.
+// csvlang supports one and two character (eg. !=) tokens.
 package lexer
 
 import (
-	"csvlang/token"
+	"strings"
+
+	"github.com/Rishabh570/csvlang/token"
 )
 
+// Lexer is the struct that represents the lexer.
+// It contains the input string, the current position in the input string, the current character being read, and the next character to be read.
+// It also contains the current line and column numbers for error reporting.
 type Lexer struct {
-	input        string
-	position     int
-	readPosition int
-	ch           byte
-	Line         int // current line number
-	Column       int // current column number
+	input        string // input string
+	position     int    // current position in input (points to current char)
+	readPosition int    // next position in input (points to next char)
+	ch           byte   // current char under examination
+	Line         int    // current line number
+	Column       int    // current column number
 }
 
+// TODO: rename this to NewLexer
+// New creates a new Lexer with the given input string.
 func New(input string) *Lexer {
 	l := &Lexer{
 		input:  input,
@@ -41,12 +52,23 @@ func (l *Lexer) readChar() {
 	}
 }
 
+// readComment reads the comment until the end of the line
+// not using l.readString() as we want to ignore double-quote when reading comments
 func (l *Lexer) readComment() token.Token {
-	for l.ch != '\n' && l.ch != 0 {
+	position := l.position + 1
+	for {
 		l.readChar()
+
+		if l.ch == 0 || l.ch == '\n' {
+			break
+		}
 	}
 
-	return token.Token{Type: token.SINGLE_LINE_COMMENT, Literal: token.SINGLE_LINE_COMMENT}
+	commentedText := l.input[position:l.position]
+	// trim to remove leading and/or trailing spaces
+	commentedText = strings.Trim(commentedText, " ")
+
+	return token.Token{Type: token.SINGLE_LINE_COMMENT, Literal: commentedText}
 }
 
 func (l *Lexer) peekChar() byte {
@@ -78,7 +100,7 @@ func (l *Lexer) readString() string {
 	for {
 		l.readChar()
 
-		if l.ch == '"' || l.ch == 0 {
+		if l.ch == '"' || l.ch == 0 || l.ch == '\n' {
 			break
 		}
 	}
@@ -91,9 +113,9 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
+// NextToken reads the next token from the input string.
 func (l *Lexer) NextToken() token.Token {
 	var tok token.Token
-	// fmt.Println("[l.NextToken] tok: ", tok.Literal, tok.Type)
 
 	l.skipWhitespace()
 
@@ -151,23 +173,16 @@ func (l *Lexer) NextToken() token.Token {
 		tok.Literal = ""
 		tok.Type = token.EOF
 	default:
-		// TODO: do we need to keep track of the previous token to achieve load functionality?
-		// eg. Load input.csv => when we're on "input.csv" token, if prev token was "load", "input.csv" will have tok.Type = FILEPATH (might help later to identify path when reading file)
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
-			// fmt.Println("[l.NextToken] isLetter: ", tok.Literal, tok.Type)
 			tok.Type = token.LookupIdent(tok.Literal)
-			// fmt.Println("[NextToken] type", tok.Type)
-			// fmt.Println("[NextToken] literal", tok.Literal)
 			return tok
 		}
 		if isDigit(l.ch) {
-			// fmt.Println("[l.NextToken] isDigit: ", tok.Literal, tok.Type)
 			tok.Type = token.INT
 			tok.Literal = l.readNumber()
 			return tok
 		}
-		// fmt.Println("char not matching anything in lexer!!!", l.ch)
 
 		tok = newToken(token.ILLEGAL, l.ch)
 	}

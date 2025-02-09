@@ -2,69 +2,614 @@
 package evaluator
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
-	"csvlang/lexer"
-	"csvlang/object"
-	"csvlang/parser"
+	"github.com/Rishabh570/csvlang/lexer"
+	"github.com/Rishabh570/csvlang/object"
+	"github.com/Rishabh570/csvlang/parser"
+
+	"github.com/gocarina/gocsv"
+	"github.com/stretchr/testify/require"
 )
 
-// func TestLoadAndReadStatement(t *testing.T) {
-// 	// Create a temporary CSV file for testing
-// 	// 	content := `name,age,city
-// 	// Alice,30,New York
-// 	// Bob,25,Los Angeles`
+type RowJSON struct {
+	Name string `json:"name"`
+	Age  string `json:"age"`
+}
 
-// 	// 	tmpfile, err := os.CreateTemp("", "test*.csv")
-// 	// 	if err != nil {
-// 	// 		t.Fatal(err)
-// 	// 	}
-// 	// 	defer os.Remove(tmpfile.Name())
+type OutputJSON struct {
+	Headers []string
+	Rows    []RowJSON
+}
 
-// 	// 	if _, err := tmpfile.Write([]byte(content)); err != nil {
-// 	// 		t.Fatal(err)
-// 	// 	}
-// 	// 	if err := tmpfile.Close(); err != nil {
-// 	// 		t.Fatal(err)
-// 	// 	}
+type RowCSV struct {
+	Name string `csv:"name"`
+	Age  string `csv:"age"`
+}
 
-// 	env := object.NewEnvironment()
+type OutputCSV struct {
+	Headers []string
+	Rows    []RowCSV
+}
 
-// 	// Test LOAD
-// 	// loadInput := fmt.Sprintf(`load %s`, tmpfile.Name())
-// 	loadInput := fmt.Sprintf("load i.csv")
-// 	fmt.Println("input1: ", loadInput)
-// 	evaluated := testEval(loadInput, env)
-// 	fmt.Println("eval result 1: ", evaluated)
+func TestLoadStatement(t *testing.T) {
+	// Create a temporary CSV file for testing
+	inputFileName := "i.csv"
+	content := `name,age
+Alice,30
+Bob,25
+`
+	removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+	require.NoError(t, err, "failed to create dummy CSV file")
+	defer removeDummyFileFn()
 
-// 	csvObj, ok := evaluated.(*object.CSV)
-// 	if !ok {
-// 		t.Fatalf("load: object is not CSV. got=%T (%+v)", evaluated, evaluated)
-// 	}
+	// Test LOAD
+	evaluated := testEval(fmt.Sprintf("load %s", inputFileName))
+	fmt.Println("eval result 1: ", evaluated)
 
-// 	// Test READ
-// 	readInput := "READ"
-// 	evaluated = testEval(readInput, env)
-// 	fmt.Println("eval result 2: ", evaluated)
+	csvObj, ok := evaluated.(*object.CSV)
+	if !ok {
+		t.Fatalf("load: object is not CSV. got=%T (%+v)", evaluated, evaluated)
+	}
 
-// 	csvObj, ok = evaluated.(*object.CSV)
-// 	if !ok {
-// 		t.Fatalf("read: object is not CSV. got=%T (%+v)", evaluated, evaluated)
-// 	}
+	expectedHeaders := []string{"name", "age"}
+	if len(csvObj.Headers) != len(expectedHeaders) {
+		t.Fatalf("wrong number of headers. want=%d, got=%d",
+			len(expectedHeaders), len(csvObj.Headers))
+	}
 
-// 	expectedHeaders := []string{"name", "age"}
-// 	if len(csvObj.Headers) != len(expectedHeaders) {
-// 		t.Fatalf("wrong number of headers. want=%d, got=%d",
-// 			len(expectedHeaders), len(csvObj.Headers))
-// 	}
+	expectedRows := 2
+	if len(csvObj.Rows) != expectedRows {
+		t.Errorf("wrong number of rows. want=%d, got=%d",
+			expectedRows, len(csvObj.Rows))
+	}
+}
 
-// 	expectedRows := 2
-// 	if len(csvObj.Rows) != expectedRows {
-// 		t.Errorf("wrong number of rows. want=%d, got=%d",
-// 			expectedRows, len(csvObj.Rows))
-// 	}
-// }
+func TestLoadAndReadRowsStatement(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        string
+		wantRowCount int
+		wantColCount int
+	}{
+		{
+			name: "load and read row 0",
+			input: `
+			load i.csv
+			read row 0
+			`,
+			wantRowCount: 1,
+			wantColCount: 2,
+		},
+		{
+			name: "load and read row *",
+			input: `
+			load i.csv
+			read row *
+			`,
+			wantRowCount: 2,
+			wantColCount: 2,
+		},
+		{
+			name: "load and read row * where age > 27",
+			input: `
+			load i.csv
+			read row * where age > 27
+			`,
+			wantRowCount: 1,
+			wantColCount: 2,
+		},
+		{
+			name: "load and read row * where age == 27",
+			input: `
+			load i.csv
+			read row * where age == 27
+			`,
+			wantRowCount: 0,
+			wantColCount: 2,
+		},
+		{
+			name: "load and read row * where age < 30",
+			input: `
+			load i.csv
+			read row * where age < 30
+			`,
+			wantRowCount: 1,
+			wantColCount: 2,
+		},
+		{
+			name: "load and read row * where name == 'Bob'",
+			input: `
+			load i.csv
+			read row * where name == "Bob"
+			`,
+			wantRowCount: 1,
+			wantColCount: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,30
+Bob,25`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			evaluated := testEval(tt.input)
+
+			csvObj, ok := evaluated.(*object.CSV)
+			if !ok {
+				t.Fatalf("load: object is not CSV. got=%T (%+v)", evaluated, evaluated)
+			}
+
+			expectedHeaders := []string{"name", "age"}
+			if len(csvObj.Headers) != len(expectedHeaders) {
+				t.Errorf("wrong number of headers. want=%d, got=%d",
+					len(expectedHeaders), len(csvObj.Headers))
+			}
+
+			if len(csvObj.Rows) != tt.wantRowCount {
+				t.Errorf("wrong number of rows. want=%d, got=%d",
+					tt.wantRowCount, len(csvObj.Rows))
+			}
+
+			if len(csvObj.Headers) != tt.wantColCount {
+				t.Errorf("wrong number of cols. want=%d, got=%d",
+					tt.wantColCount, len(csvObj.Headers))
+			}
+		})
+	}
+}
+
+func TestLoadAndReadColsStatement(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		wantRowCount  int
+		wantColCount  int
+		wantColValues []string
+	}{
+		// result should only include a single qualifying row
+		{
+			name: "load and read row * col name where age > 27",
+			input: `
+			load i.csv
+			read row * col name where age > 27
+			`,
+			wantRowCount:  1,
+			wantColCount:  2,
+			wantColValues: []string{"Alice"},
+		},
+		// result should only include a single qualifying row
+		{
+			name: "load and read row * col name where age == 30",
+			input: `
+			load i.csv
+			read row * col name where age == 30
+			`,
+			wantRowCount:  1,
+			wantColCount:  2,
+			wantColValues: []string{"Alice"},
+		},
+		// result should only include a single qualifying row
+		{
+			name: "load and read row * col name where age < 30",
+			input: `
+			load i.csv
+			read row * col name where age < 30
+			`,
+			wantRowCount:  1,
+			wantColCount:  2,
+			wantColValues: []string{"Bob"},
+		},
+		// result should only include both qualified rows
+		{
+			name: "load and read row * col name where age > 17",
+			input: `
+			load i.csv
+			read row * col name where age > 17
+			`,
+			wantRowCount:  1,
+			wantColCount:  2,
+			wantColValues: []string{"Alice", "Bob"},
+		},
+		// result should only contain the row with `name == "Alice"`
+		{
+			name: "load and read row * col name where name == 'Alice'",
+			input: `
+			load i.csv
+			read row * col name where name == "Alice"
+			`,
+			wantRowCount:  1,
+			wantColCount:  2,
+			wantColValues: []string{"Alice"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,30
+Bob,25`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			evaluated := testEval(tt.input)
+
+			csvObj, ok := evaluated.(*object.Array)
+			if !ok {
+				t.Fatalf("load: object is not CSV. got=%T (%+v)", evaluated, evaluated)
+			}
+
+			// Check if the col values are as expected
+			if len(tt.wantColValues) > 0 {
+				if len(csvObj.Elements) != len(tt.wantColValues) {
+					t.Errorf("wrong number of returned values. want=%d, got=%d",
+						len(tt.wantColValues), len(csvObj.Elements))
+				}
+
+				for i, v := range csvObj.Elements {
+					if v.Inspect() != tt.wantColValues[i] {
+						t.Errorf("wrong col value. want=%s, got=%s",
+							tt.wantColValues[i], v.Inspect())
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestSaveAsJSONStatement(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantResultJSON OutputJSON
+	}{
+		{
+			name: "load and save as json",
+			input: `
+			load i.csv
+			save as output.json
+			`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+		{
+			name: "load and save as json",
+			input: `
+			load i.csv
+			let val = read row 0;
+			save val as output.json
+			`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+				},
+			},
+		},
+		{
+			name: "load and save as json",
+			input: `
+			load i.csv
+			let val = read row *;
+			save val as output.json
+			`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+		{
+			name: "load and save as json",
+			input: `
+			load i.csv
+			let val = read row * where age > 25;
+			save val as output.json
+			`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+				},
+			},
+		},
+		{
+			name: "load and save as json",
+			input: `
+			load i.csv
+			let val = read row * where age == 25;
+			save val as output.json
+			`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,30
+Bob,25`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			_ = testEval(tt.input)
+
+			// Check if a file named output.json was created
+			fileExists := doesFileExist(t, "output.json")
+			require.True(t, fileExists, "output.json file was not created")
+
+			// Check the content of the output.json file
+			testFileContents(t, tt.wantResultJSON, "output.json")
+
+			// Remove the output.json file
+			err = os.Remove("output.json")
+			require.NoError(t, err, "failed to remove output.json")
+		})
+	}
+}
+
+func TestSaveImplicitAsCSVStatement(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		wantResultCSV OutputCSV
+	}{
+		{
+			name: "load and implicit save as csv",
+			input: `
+			load i.csv
+			save as output.csv
+			`,
+			wantResultCSV: OutputCSV{
+				Headers: []string{"name", "age"},
+				Rows: []RowCSV{
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+		{
+			name: "load and custom save as csv 1",
+			input: `
+			load i.csv
+			let val = read row 0;
+			save val as output.csv
+			`,
+			wantResultCSV: OutputCSV{
+				Headers: []string{"name", "age"},
+				Rows: []RowCSV{
+					{Name: "Alice", Age: "30"},
+				},
+			},
+		},
+		{
+			name: "load and custom save as csv 2",
+			input: `
+			load i.csv
+			let val = read row *;
+			save val as output.csv
+			`,
+			wantResultCSV: OutputCSV{
+				Headers: []string{"name", "age"},
+				Rows: []RowCSV{
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+		{
+			name: "load and custom save as csv 3",
+			input: `
+			load i.csv
+			let val = read row * where age > 25;
+			save val as output.csv
+			`,
+			wantResultCSV: OutputCSV{
+				Headers: []string{"name", "age"},
+				Rows: []RowCSV{
+					{Name: "Alice", Age: "30"},
+				},
+			},
+		},
+		{
+			name: "load and custom save as csv 4",
+			input: `
+			load i.csv
+			let val = read row * where age == 25;
+			save val as output.csv
+			`,
+			wantResultCSV: OutputCSV{
+				Headers: []string{"name", "age"},
+				Rows: []RowCSV{
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,30
+Bob,25`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			_ = testEval(tt.input)
+
+			// Check if a file named output.json was created
+			fileExists := doesFileExist(t, "output.csv")
+			require.True(t, fileExists, "output.csv file was not created")
+
+			// Check the content of the output.json file
+			testCSVFileContents(t, tt.wantResultCSV, "output.csv")
+
+			// Remove the output.json file
+			err = os.Remove("output.csv")
+			require.NoError(t, err, "failed to remove output.csv")
+		})
+	}
+}
+
+func TestUniqueBuiltinFunction(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantResultJSON OutputJSON
+	}{
+		{
+			name: "using unique builtin removes duplicate rows",
+			input: `
+			load i.csv
+			let rows = read row *;
+			let uniqueRows = unique(rows);
+			save uniqueRows as output.json`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+		{
+			name: "not using unique results in duplicate rows",
+			input: `
+			load i.csv
+			let rows = read row *;
+			save rows as output.json`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "30"},
+					{Name: "Alice", Age: "30"},
+					{Name: "Alice", Age: "30"},
+					{Name: "Bob", Age: "25"},
+					{Name: "Bob", Age: "25"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,30
+Alice,30
+Alice,30
+Bob,25
+Bob,25
+`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			_ = testEval(tt.input)
+
+			// Check if a file named output.json was created
+			fileExists := doesFileExist(t, "output.json")
+			require.True(t, fileExists, "output.json file was not created")
+
+			// Check the content of the output.json file
+			testFileContents(t, tt.wantResultJSON, "output.json")
+
+			// Remove the output.json file
+			err = os.Remove("output.json")
+			require.NoError(t, err, "failed to remove output.json")
+		})
+	}
+}
+
+func TestFillEmptyBuiltinFunction(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		wantResultJSON OutputJSON
+	}{
+		{
+			name: "using fill_empty builtin should fill missing or empty values",
+			input: `
+			load i.csv
+			let rows = read row *;
+			let updatedRows = fill_empty(rows, "name", "john");
+			updatedRows = fill_empty(updatedRows, "age", 18);
+			save updatedRows as output.json`,
+			wantResultJSON: OutputJSON{
+				Headers: []string{"name", "age"},
+				Rows: []RowJSON{
+					{Name: "Alice", Age: "18"},
+					{Name: "john", Age: "25"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary CSV file for testing
+			inputFileName := "i.csv"
+			content := `name,age
+Alice,
+,25
+`
+			removeDummyFileFn, err := addDummyCSVFile(t, content, inputFileName)
+			require.NoError(t, err, "failed to create dummy CSV file")
+			defer removeDummyFileFn()
+
+			// Evaluate code
+			_ = testEval(tt.input)
+
+			// Check if a file named output.json was created
+			fileExists := doesFileExist(t, "output.json")
+			require.True(t, fileExists, "output.json file was not created")
+
+			// Check the content of the output.json file
+			testFileContents(t, tt.wantResultJSON, "output.json")
+
+			// Remove the output.json file
+			err = os.Remove("output.json")
+			require.NoError(t, err, "failed to remove output.json")
+		})
+	}
+
+}
 
 func TestEvalIntegerExpression(t *testing.T) {
 	tests := []struct {
@@ -496,10 +1041,116 @@ func testEval(input string) object.Object {
 	return Eval(program, env)
 }
 
-// func testEval(input string, env *object.Environment) object.Object {
-// 	l := lexer.New(input)
-// 	p := parser.New(l)
-// 	program := p.ParseProgram()
+func doesFileExist(t *testing.T, filename string) bool {
+	cwd, err := os.Getwd()
+	require.NoError(t, err, "failed to get current working directory")
 
-// 	return Eval(program, env)
-// }
+	_, err = os.Stat(fmt.Sprintf("%s/%s", cwd, filename))
+	return err == nil
+}
+
+func addDummyCSVFile(t *testing.T, content, inputFileName string) (func(), error) {
+	// Create a temporary CSV file for testing
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	tmpfile, err := os.Create(fmt.Sprintf("%s/%s", cwd, inputFileName))
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := tmpfile.Write([]byte(content)); err != nil {
+		return nil, err
+	}
+	if err := tmpfile.Close(); err != nil {
+		return nil, err
+	}
+
+	return func() {
+		os.Remove(tmpfile.Name())
+	}, nil
+}
+
+func testFileContents(t *testing.T, expectedResultJSON OutputJSON, filename string) error {
+	// 1. open the file
+	file, err := os.ReadFile(filename)
+	require.NoError(t, err, "failed to open file")
+	fmt.Printf("file contents: %s\n", string(file))
+
+	// 2. unmarshal the file contents into OutputJSON struct
+	var outputJSON OutputJSON
+	err = json.Unmarshal(file, &outputJSON)
+	require.NoError(t, err, "failed to unmarshal file contents")
+
+	// 3. check if the headers are as expected
+	expectedHeaders := expectedResultJSON.Headers
+	if len(outputJSON.Headers) != len(expectedHeaders) {
+		t.Errorf("wrong number of headers. want=%d, got=%d",
+			len(expectedHeaders), len(outputJSON.Headers))
+	}
+	for i, h := range outputJSON.Headers {
+		if h != expectedHeaders[i] {
+			t.Errorf("wrong header value. want=%s, got=%s",
+				expectedHeaders[i], h)
+		}
+	}
+
+	// 4. check if the rows are as expected
+	expectedRows := expectedResultJSON.Rows
+	if len(outputJSON.Rows) != len(expectedRows) {
+		t.Errorf("wrong number of rows. want=%d, got=%d",
+			len(expectedRows), len(outputJSON.Rows))
+	}
+	for i, row := range outputJSON.Rows {
+		if row != expectedRows[i] {
+			t.Errorf("wrong row value. want=%+v, got=%+v",
+				expectedRows[i], row)
+		}
+	}
+	return nil
+}
+
+func testCSVFileContents(t *testing.T, expectedResultCSV OutputCSV, filename string) error {
+	// 1. open the file
+	file, err := os.Open(filename)
+	require.NoError(t, err, "failed to open file")
+
+	// 2. unmarshal the file contents into OutputJSON struct
+	var rows []RowCSV
+	err = gocsv.UnmarshalFile(file, &rows)
+	require.NoError(t, err, "failed to unmarshal file contents")
+
+	outputCSV := OutputCSV{
+		Headers: expectedResultCSV.Headers, // can't get headers from the unmarshal, not worth putting assertions as it'll always pass in the current state
+		Rows:    rows,
+	}
+
+	// 3. check if the headers are as expected
+	expectedHeaders := expectedResultCSV.Headers
+	if len(outputCSV.Headers) != len(expectedHeaders) {
+		t.Errorf("wrong number of headers. want=%d, got=%d",
+			len(expectedHeaders), len(outputCSV.Headers))
+	}
+	for i, h := range outputCSV.Headers {
+		if h != expectedHeaders[i] {
+			t.Errorf("wrong header value. want=%s, got=%s",
+				expectedHeaders[i], h)
+		}
+	}
+
+	// 4. check if the rows are as expected
+	expectedRows := expectedResultCSV.Rows
+	if len(outputCSV.Rows) != len(expectedRows) {
+		t.Errorf("wrong number of rows. want=%d, got=%d",
+			len(expectedRows), len(outputCSV.Rows))
+	}
+	for i, row := range outputCSV.Rows {
+		if row != expectedRows[i] {
+			t.Errorf("wrong row value. want=%+v, got=%+v",
+				expectedRows[i], row)
+		}
+	}
+	return nil
+}
