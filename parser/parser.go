@@ -21,6 +21,7 @@ const (
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 	INDEX       // array[index]
+	ASSIGN      // =
 )
 
 var precedences = map[token.TokenType]int{
@@ -34,6 +35,7 @@ var precedences = map[token.TokenType]int{
 	token.ASTERISK: PRODUCT,
 	token.LPAREN:   CALL,
 	token.LBRACKET: INDEX,
+	token.ASSIGN:   ASSIGN,
 }
 
 type Parser struct {
@@ -79,7 +81,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FUNCTION, p.parseFunctionLiteral)
 	p.registerPrefix(token.STRING, p.parseStringLiteral)
 	p.registerPrefix(token.READ, p.parseReadAsExpression)
-	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteralAsExpression)
+	p.registerPrefix(token.FOR, p.parseForLoopAsExpression)
 
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
 	p.registerInfix(token.MINUS, p.parseInfixExpression)
@@ -91,6 +94,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LPAREN, p.parseCallExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexExpression)
+	p.registerInfix(token.ASSIGN, p.parseIndexAssignment)
 
 	// Read two tokens, so curToken and peekToken are both set
 	p.nextToken()
@@ -155,9 +159,29 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseReturnStatement()
 	case token.SAVE:
 		return p.parseSaveStatement()
+	case token.FOR:
+		return p.parseForLoopStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
+}
+
+func (p *Parser) parseIndexAssignment(left ast.Expression) ast.Expression {
+	// Check if left side is an index expression
+	indexExp, ok := left.(*ast.IndexExpression)
+	if !ok {
+		return nil
+	}
+
+	exp := &ast.IndexAssignmentExpression{
+		Token: p.curToken,
+		Left:  indexExp,
+	}
+
+	p.nextToken() // move past '='
+	exp.Value = p.parseExpression(LOWEST)
+
+	return exp
 }
 
 // Two options:
@@ -195,13 +219,26 @@ func (p *Parser) parseSaveStatement() *ast.SaveStatement {
 		return nil
 	}
 
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
 	return stmt
 }
 
-func (p *Parser) parseArrayLiteral() ast.Expression {
+func (p *Parser) parseArrayLiteralStatement() ast.Statement {
+	array := p.parseArrayLiteral()
+	return &ast.ArrayLiteralStatement{ArrayLiteral: array}
+}
+
+func (p *Parser) parseArrayLiteral() *ast.ArrayLiteral {
 	array := &ast.ArrayLiteral{Token: p.curToken}
 	array.Elements = p.parseExpressionList(token.RBRACKET)
 	return array
+}
+
+func (p *Parser) parseArrayLiteralAsExpression() ast.Expression {
+	return p.parseArrayLiteral()
 }
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
@@ -557,6 +594,62 @@ func (p *Parser) parseReadExpression() *ast.ReadExpression {
 // This is for expression usage - implements prefixParseFn
 func (p *Parser) parseReadAsExpression() ast.Expression {
 	return p.parseReadExpression()
+}
+
+func (p *Parser) parseForLoopAsExpression() ast.Expression {
+	return p.parseForLoopExpression()
+}
+
+func (p *Parser) parseForLoopExpression() *ast.ForLoopExpression {
+	fmt.Printf("[parseForLoopExpression] starting...\n")
+	stmt := &ast.ForLoopExpression{Token: p.curToken}
+
+	// Parse index identifier
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.IndexName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Parse comma
+	if !p.expectPeek(token.COMMA) {
+		return nil
+	}
+
+	// Parse element identifier
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ElementName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Parse 'in' keyword
+	if !p.expectPeek(token.IN) {
+		return nil
+	}
+
+	// Parse iterable expression
+	p.nextToken()
+	stmt.Iterable = p.parseExpression(LOWEST)
+
+	// Parse body
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+	stmt.Body = p.parseBlockStatement()
+
+	if !p.curTokenIs(token.RBRACE) {
+		return nil
+	}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseForLoopStatement() ast.Statement {
+	forLoopExpr := p.parseForLoopExpression()
+	return &ast.ForLoopStatement{ForLoopExpression: forLoopExpr}
 }
 
 func (p *Parser) curTokenIs(t token.TokenType) bool {

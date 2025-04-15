@@ -127,10 +127,57 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return args[0]
 		}
 		return applyFunction(function, args, env)
+	case *ast.ForLoopStatement:
+		return evalForLoopStatement(node.ForLoopExpression, env)
+	case *ast.ForLoopExpression:
+		return evalForLoopStatement(node, env)
+	case *ast.IndexAssignmentExpression:
+		return evalIndexAssignmentExpression(node, env)
 	default:
 		fmt.Printf("[Eval] no match: %+v\n", node.String())
 	}
 	return nil
+}
+
+func evalIndexAssignmentExpression(node *ast.IndexAssignmentExpression, env *object.Environment) object.Object {
+	// Evaluate the array
+	array := Eval(node.Left.Left, env)
+	if isError(array) {
+		return array
+	}
+
+	// Evaluate the index
+	index := Eval(node.Left.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	// Evaluate the value to assign
+	value := Eval(node.Value, env)
+	if isError(value) {
+		return value
+	}
+
+	// Check if we're working with an array
+	arr, ok := array.(*object.Array)
+	if !ok {
+		return newError("index assignment not supported for type: %s", array.Type())
+	}
+
+	// Check if index is integer
+	idx, ok := index.(*object.Integer)
+	if !ok {
+		return newError("array index must be INTEGER, got %s", index.Type())
+	}
+
+	// Check bounds
+	if idx.Value < 0 || idx.Value >= int64(len(arr.Elements)) {
+		return newError("array index out of bounds: %d", idx.Value)
+	}
+
+	// Update array element
+	arr.Elements[idx.Value] = value
+	return value
 }
 
 func evalSaveStatement(node *ast.SaveStatement, env *object.Environment) object.Object {
@@ -303,6 +350,56 @@ func evalAppendStatement(node *ast.AppendStatement, env *object.Environment) obj
 	// Write the new row
 	if err := writer.Write(rowData); err != nil {
 		return newError("could not write to file: %s", err)
+	}
+
+	return NULL
+}
+
+func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) object.Object {
+	iterableObj := Eval(fl.Iterable, env)
+	if isError(iterableObj) {
+		return iterableObj
+	}
+
+	var elements []object.Object
+	switch iterable := iterableObj.(type) {
+	case *object.Array:
+		elements = iterable.Elements
+	default:
+		return newError("for loop iterable must be ARRAY, got %s", iterableObj.Type())
+	}
+
+	for i, element := range elements {
+		// Create new scope for each iteration
+		loopEnv := object.NewEnclosedEnvironment(env)
+
+		// Bind index and element
+		loopEnv.Set(fl.IndexName.Value, &object.Integer{Value: int64(i)})
+		loopEnv.Set(fl.ElementName.Value, element)
+
+		fmt.Printf("[evalForLoopStatement] evaluating block statment: %+v\n", fl.Body)
+		// Evaluate body
+		Eval(fl.Body, loopEnv)
+
+		// Update original array if modified
+		if arr, ok := iterableObj.(*object.Array); ok {
+			if val, ok := loopEnv.Get(fl.ElementName.Value); ok {
+				fmt.Printf("[evalForLoopStatement] updating element: %+v\n", val.Inspect())
+				arr.Elements[i] = val
+			}
+		}
+
+		// Copy any modified outer scope variables back to parent environment
+		for name, val := range loopEnv.GetStore() {
+			if _, exists := env.Get(name); exists {
+				fmt.Printf("[evalForLoopStatement] setting %s to %s\n", name, val.Inspect())
+				env.Set(name, val)
+			}
+		}
+
+		// unset values from the loopEnv set in this iteration of the for loop
+		// loopEnv.Unset(fl.IndexName.Value)
+		// loopEnv.Unset(fl.ElementName.Value)
 	}
 
 	return NULL

@@ -149,19 +149,14 @@ type ReadStatement struct {
 
 func (rs *ReadStatement) statementNode()       {}
 func (rs *ReadStatement) TokenLiteral() string { return rs.Token.Literal }
-
-// func (ls *ReadStatement) statementNode()       {}
-// func (ls *ReadStatement) TokenLiteral() string { return ls.Token.Literal }
-// func (ls *ReadStatement) String() string {
-// 	var out bytes.Buffer
-// 	out.WriteString(ls.TokenLiteral() + " ")
-// 	// TODO: revisit this if needed
-// 	if ls.Location.String() != "" {
-// 		out.WriteString(ls.Location.String())
-// 	}
-
-// 	return out.String()
-// }
+func (rs *ReadStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString(rs.TokenLiteral() + " ")
+	if rs.Location.String() != "" {
+		out.WriteString(rs.Location.String())
+	}
+	return out.String()
+}
 
 type ReadFilterExpression struct {
 	Token      token.Token // the token.WHERE token
@@ -463,6 +458,14 @@ func (al *ArrayLiteral) String() string {
 	return out.String()
 }
 
+// ArrayLiteralStatement is just like ArrayLiteral but is used as a statement
+type ArrayLiteralStatement struct {
+	*ArrayLiteral
+}
+
+func (rs *ArrayLiteralStatement) statementNode()       {}
+func (rs *ArrayLiteralStatement) TokenLiteral() string { return rs.Token.Literal }
+
 // Index Expression for accessing array elements
 type IndexExpression struct {
 	Token token.Token // The '[' token
@@ -498,5 +501,66 @@ func (ss *SaveStatement) String() string {
 		out.WriteString(ss.Source.String() + " as ")
 	}
 	out.WriteString(ss.Filename)
+	return out.String()
+}
+
+// ForLoopExpression for iterating over arrays
+type ForLoopExpression struct {
+	Token       token.Token
+	IndexName   *Identifier
+	ElementName *Identifier
+	Iterable    Expression
+	Body        *BlockStatement
+}
+
+func (fl *ForLoopExpression) expressionNode()      {}
+func (fl *ForLoopExpression) TokenLiteral() string { return fl.Token.Literal }
+func (fl *ForLoopExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("for ")
+	out.WriteString(fl.IndexName.String())
+	out.WriteString(", ")
+	out.WriteString(fl.ElementName.String())
+	out.WriteString(" in ")
+	out.WriteString(fl.Iterable.String())
+	out.WriteString(" ")
+	out.WriteString(fl.Body.String())
+	return out.String()
+}
+
+// ForLoopStatement is just like ForLoopExpression but is used as a statement
+type ForLoopStatement struct {
+	*ForLoopExpression
+}
+
+func (fl *ForLoopStatement) statementNode()       {}
+func (fl *ForLoopStatement) TokenLiteral() string { return fl.Token.Literal }
+func (fl *ForLoopStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("for ")
+	out.WriteString(fl.IndexName.String())
+	out.WriteString(", ")
+	out.WriteString(fl.ElementName.String())
+	out.WriteString(" in ")
+	out.WriteString(fl.Iterable.String())
+	out.WriteString(" ")
+	out.WriteString(fl.Body.String())
+	return out.String()
+}
+
+// IndexAssignmentExpression for re-assigning values
+type IndexAssignmentExpression struct {
+	Token token.Token // The '=' token
+	Left  *IndexExpression
+	Value Expression
+}
+
+func (iae *IndexAssignmentExpression) expressionNode()      {}
+func (iae *IndexAssignmentExpression) TokenLiteral() string { return iae.Token.Literal }
+func (iae *IndexAssignmentExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(iae.Left.String())
+	out.WriteString(" = ")
+	out.WriteString(iae.Value.String())
 	return out.String()
 }

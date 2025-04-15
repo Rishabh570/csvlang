@@ -1,2 +1,5 @@
-i.csv
-script.sh
+**/.DS_Store
+
+# Dummy data and script files
+**/*.csv
+**/*.sh
