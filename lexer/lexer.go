@@ -1,6 +1,8 @@
 package lexer
 
 import (
+	"strings"
+
 	"github.com/Rishabh570/csvlang/token"
 )
 
@@ -41,12 +43,23 @@ func (l *Lexer) readChar() {
 	}
 }
 
+// readComment reads the comment until the end of the line
+// not using l.readString() as we want to ignore double-quote when reading comments
 func (l *Lexer) readComment() token.Token {
-	for l.ch != '\n' && l.ch != 0 {
+	position := l.position + 1
+	for {
 		l.readChar()
+
+		if l.ch == 0 || l.ch == '\n' {
+			break
+		}
 	}
 
-	return token.Token{Type: token.SINGLE_LINE_COMMENT, Literal: token.SINGLE_LINE_COMMENT}
+	commentedText := l.input[position:l.position]
+	// trim to remove leading and/or trailing spaces
+	commentedText = strings.Trim(commentedText, " ")
+
+	return token.Token{Type: token.SINGLE_LINE_COMMENT, Literal: commentedText}
 }
 
 func (l *Lexer) peekChar() byte {
@@ -78,7 +91,7 @@ func (l *Lexer) readString() string {
 	for {
 		l.readChar()
 
-		if l.ch == '"' || l.ch == 0 {
+		if l.ch == '"' || l.ch == 0 || l.ch == '\n' {
 			break
 		}
 	}
