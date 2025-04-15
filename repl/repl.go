@@ -2,14 +2,15 @@ package repl
 
 import (
 	"bufio"
-	"csvlang/evaluator"
-	"csvlang/lexer"
-	"csvlang/object"
-	"csvlang/parser"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/evaluator"
+	"github.com/Rishabh570/csvlang/lexer"
+	"github.com/Rishabh570/csvlang/object"
+	"github.com/Rishabh570/csvlang/parser"
 )
 
 const PROMPT = ">> "

@@ -1,7 +1,7 @@
 package lexer
 
 import (
-	"csvlang/token"
+	"github.com/Rishabh570/csvlang/token"
 )
 
 type Lexer struct {

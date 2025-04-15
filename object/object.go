@@ -3,10 +3,11 @@ package object
 
 import (
 	"bytes"
-	"csvlang/ast"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/ast"
 )
 
 type ObjectType string

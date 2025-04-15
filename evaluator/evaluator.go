@@ -1,13 +1,14 @@
 package evaluator
 
 import (
-	"csvlang/ast"
-	"csvlang/object"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/Rishabh570/csvlang/ast"
+	"github.com/Rishabh570/csvlang/object"
 )
 
 var (

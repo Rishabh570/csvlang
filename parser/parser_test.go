@@ -1,10 +1,11 @@
 package parser
 
 import (
-	"csvlang/ast"
-	"csvlang/lexer"
 	"fmt"
 	"testing"
+
+	"github.com/Rishabh570/csvlang/ast"
+	"github.com/Rishabh570/csvlang/lexer"
 )
 
 func TestLoadStatement(t *testing.T) {

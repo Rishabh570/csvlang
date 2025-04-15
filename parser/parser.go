@@ -1,13 +1,14 @@
 package parser
 
 import (
-	"csvlang/ast"
-	"csvlang/lexer"
-	"csvlang/token"
 	"fmt"
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/ast"
+	"github.com/Rishabh570/csvlang/lexer"
+	"github.com/Rishabh570/csvlang/token"
 )
 
 const (

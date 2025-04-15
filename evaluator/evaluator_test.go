@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"csvlang/lexer"
-	"csvlang/object"
-	"csvlang/parser"
+	"github.com/Rishabh570/csvlang/lexer"
+	"github.com/Rishabh570/csvlang/object"
+	"github.com/Rishabh570/csvlang/parser"
 )
 
 // func TestLoadAndReadStatement(t *testing.T) {

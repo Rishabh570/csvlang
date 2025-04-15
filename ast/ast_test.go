@@ -1,8 +1,9 @@
 package ast
 
 import (
-	"csvlang/token"
 	"testing"
+
+	"github.com/Rishabh570/csvlang/token"
 )
 
 func TestString(t *testing.T) {

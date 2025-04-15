@@ -1,8 +1,9 @@
 package lexer
 
 import (
-	"csvlang/token"
 	"testing"
+
+	"github.com/Rishabh570/csvlang/token"
 )
 
 func TestNextTokenOne(t *testing.T) {

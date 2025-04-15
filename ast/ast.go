@@ -2,9 +2,10 @@ package ast
 
 import (
 	"bytes"
-	"csvlang/token"
 	"fmt"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/token"
 )
 
 type Node interface {

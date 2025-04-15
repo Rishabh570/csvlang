@@ -1,9 +1,10 @@
 package main
 
 import (
-	"csvlang/repl"
 	"flag"
 	"fmt"
+
+	"github.com/Rishabh570/csvlang/repl"
 )
 
 func main() {

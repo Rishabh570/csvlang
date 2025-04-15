@@ -1,9 +1,10 @@
 package evaluator
 
 import (
-	"csvlang/object"
 	"fmt"
 	"strings"
+
+	"github.com/Rishabh570/csvlang/object"
 )
 
 var builtins = map[string]*object.Builtin{
