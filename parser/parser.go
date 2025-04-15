@@ -715,7 +715,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 	// fmt.Println("[parseLocationExpression] locExpr: ", locExpr.RowIndex, locExpr.ColIndex)
 
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.EOF) {
 		p.nextToken()
 		return locExpr
 	}
@@ -743,12 +743,12 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 		locExpr.ColIndex = p.curToken.Literal
 
-		if p.peekTokenIs(token.SEMICOLON) {
+		if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.EOF) {
 			p.nextToken()
 			return locExpr
 		}
 
-		if !p.peekTokenIs(token.EOF) && !p.peekTokenIs(token.WHERE) {
+		if !p.peekTokenIs(token.WHERE) {
 			errMsg := fmt.Sprintf("READ: expected WHERE token to follow COL, got %s", p.peekToken.Type)
 			p.addError(errMsg)
 			return ast.LocationExpression{
