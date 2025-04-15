@@ -1,7 +1,9 @@
 package evaluator
 
 import (
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Rishabh570/csvlang/object"
@@ -307,6 +309,46 @@ var builtins = map[string]*object.Builtin{
 			}
 		},
 	},
+	"fill_empty": &object.Builtin{
+		Fn: func(env *object.Environment, args ...object.Object) object.Object {
+			if len(args) != 3 {
+				return newError("wrong number of arguments: got=%d, want=3", len(args))
+			}
+
+			csv, ok := args[0].(*object.CSV)
+			if !ok {
+				return newError("argument must be CSV, got %s", args[0].Type())
+			}
+			newRows := make([]map[string]string, len(csv.Rows))
+
+			fieldValue, err := convertToString(args[2].Inspect())
+			if err != nil {
+				return newError(err.Error())
+			}
+
+			fieldName := args[1].Inspect()
+			for i, row := range csv.Rows {
+				newRow := make(map[string]string)
+				for _, header := range csv.Headers {
+					if header == fieldName && row[header] == "" {
+						newRow[header] = fieldValue
+					} else {
+						newRow[header] = row[header]
+					}
+				}
+				newRows[i] = newRow
+			}
+
+			modifiedCSV := &object.CSV{
+				Headers:     csv.Headers,
+				ColumnTypes: csv.ColumnTypes,
+				Rows:        newRows,
+			}
+			// save to env
+			env.Set("csv", modifiedCSV)
+			return modifiedCSV
+		},
+	},
 }
 
 // object.CSV is our primary data type; it's best to implicitly convert the data type
@@ -449,4 +491,15 @@ func isCompatibleColumnType(target, source object.ColumnType) bool {
 		return true
 	}
 	return target.DataType == source.DataType
+}
+
+func convertToString(value any) (string, error) {
+	switch v := value.(type) {
+	case int:
+		return strconv.Itoa(v), nil
+	case string:
+		return v, nil
+	default:
+		return "", errors.New("unsupported type: only integers are supported")
+	}
 }
