@@ -33,8 +33,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ReadExpression:
 		fmt.Printf("read expr...")
 		return evalReadStatement(node, env)
-	case *ast.AppendStatement:
-		return evalAppendStatement(node, env)
 	case *ast.SaveStatement:
 		return evalSaveStatement(node, env)
 	// Expressions
@@ -258,98 +256,6 @@ func saveAsJSON(csv *object.CSV, filename string) object.Object {
 
 	if err := os.WriteFile(filename, jsonData, 0644); err != nil {
 		return newError("error writing file: %s", err)
-	}
-
-	return NULL
-}
-
-func evalAppendStatement(node *ast.AppendStatement, env *object.Environment) object.Object {
-	csvObj, ok := env.Get("csv")
-	if !ok {
-		return newError("no CSV file loaded")
-	}
-
-	csvData := csvObj.(*object.CSV)
-
-	// Validate number of values matches headers
-	if len(node.Values) != len(csvData.Headers) {
-		return newError("wrong number of values: expected %d, got %d", len(csvData.Headers), len(node.Values))
-	}
-
-	// If column types not inferred yet, do it now
-	// it should already be inferred when the CSV is loaded though
-	if len(csvData.ColumnTypes) == 0 {
-		csvData.InferColumnTypes()
-	}
-
-	// ========================
-	// Validate types of new values and append to rows
-	// ========================
-	newRow := make(map[string]string)
-	for i, value := range node.Values {
-		evaluated := Eval(value, env)
-
-		if evaluated.Type() != csvData.ColumnTypes[i].DataType {
-			return newError("type mismatch for column %s: expected %s, got %s",
-				csvData.Headers[i], csvData.ColumnTypes[i].DataType, evaluated.Type())
-		}
-
-		newRow[csvData.Headers[i]] = evaluated.Inspect()
-	}
-
-	// Append the new row
-	csvData.Rows = append(csvData.Rows, newRow)
-
-	// Store the updated CSV object in the environment
-	env.Set("csv", csvObj)
-
-	// ========================
-	// After successful validation and row creation, write to CSV file
-	// ========================
-
-	filename, ok := env.Get("filename")
-	if !ok {
-		return newError("no filename found in environment")
-	}
-	filenameStr := filename.(*object.String).Value
-
-	file, err := os.OpenFile(filenameStr, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return newError("could not open file for writing: %s", err)
-	}
-	defer file.Close()
-
-	// First ensure we're on a new line by checking last byte
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return newError("could not get file info: %s", err)
-	}
-
-	// If file is not empty and doesn't end with newline, add one
-	if fileInfo.Size() > 0 {
-		lastByte := make([]byte, 1)
-		if _, err := file.ReadAt(lastByte, fileInfo.Size()-1); err == nil {
-			if lastByte[0] != '\n' {
-				if _, err := file.WriteString("\n"); err != nil {
-					return newError("could not write newline: %s", err)
-				}
-			}
-		}
-	}
-
-	// Create CSV writer
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Convert map to slice in correct header order
-	rowData := make([]string, len(csvData.Headers))
-	for i, header := range csvData.Headers {
-		rowData[i] = newRow[header]
-	}
-
-	// Write the new row
-	if err := writer.Write(rowData); err != nil {
-		return newError("could not write to file: %s", err)
 	}
 
 	return NULL

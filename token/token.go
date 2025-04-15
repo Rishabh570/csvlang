@@ -44,7 +44,6 @@ const (
 	// Keywords
 	LOAD     = "LOAD"
 	READ     = "READ"
-	APPEND   = "APPEND"
 	UPDATE   = "UPDATE"
 	DELETE   = "DELETE"
 	FUNCTION = "FUNCTION"
@@ -72,7 +71,6 @@ type Token struct {
 var keywords = map[string]TokenType{
 	"load":   LOAD,
 	"read":   READ,
-	"append": APPEND,
 	"update": UPDATE,
 	"delete": DELETE,
 	"row":    ROW,

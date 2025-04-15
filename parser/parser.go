@@ -153,8 +153,6 @@ func (p *Parser) parseStatement() ast.Statement {
 	case token.READ:
 		fmt.Println("[parseStatement] parsing READ stmt...")
 		return p.parseReadStatement()
-	case token.APPEND:
-		return p.parseAppendStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
 	case token.SAVE:
@@ -275,41 +273,6 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	}
 
 	return list
-}
-
-func (p *Parser) parseAppendStatement() *ast.AppendStatement {
-	stmt := &ast.AppendStatement{Token: p.curToken}
-	stmt.Values = []ast.Expression{}
-
-	p.nextToken() // move past 'append'
-
-	// Check if we've reached EOF or no values provided
-	if p.curTokenIs(token.EOF) {
-		p.addError("incomplete APPEND statement: no values provided")
-		return nil
-	}
-
-	// Parse comma-separated values
-	for !p.curTokenIs(token.EOF) && !p.curTokenIs(token.SEMICOLON) {
-		if p.curTokenIs(token.COMMA) {
-			p.nextToken()
-			continue
-		}
-
-		value := p.parseExpression(LOWEST)
-		if value != nil {
-			stmt.Values = append(stmt.Values, value)
-		}
-
-		p.nextToken()
-	}
-
-	if len(stmt.Values) == 0 {
-		p.addError("WARN: no values to append")
-		return nil
-	}
-
-	return stmt
 }
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
