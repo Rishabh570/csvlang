@@ -1,3 +1,8 @@
+// ast package defines the abstract syntax tree (AST) for the language
+//
+// The AST is a tree representation of the structure of the program. It defines the nodes and interfaces for the language.
+// The nodes are used to represent the structure of the program and interfaces define the behavior of the nodes.
+// The ast package is used by the parser package to generate the AST
 package ast
 
 import (
@@ -8,25 +13,30 @@ import (
 	"github.com/Rishabh570/csvlang/token"
 )
 
+// Node interface defines the behaviour of the nodes in the AST
 type Node interface {
-	TokenLiteral() string
-	String() string
+	TokenLiteral() string // returns the literal value of the token as a string
+	String() string       // returns the string representation of the node
 }
 
+// Statement interface defines the behaviour of the statements in the AST
 type Statement interface {
 	Node
-	statementNode()
+	statementNode() // dummy method to differentiate statements from expressions
 }
 
+// Expression interface defines the behaviour of the expressions in the AST
 type Expression interface {
 	Node
-	expressionNode()
+	expressionNode() // dummy method to differentiate expressions from statements
 }
 
+// Program struct represents the entire program
 type Program struct {
-	Statements []Statement
+	Statements []Statement // slice of statements in the program
 }
 
+// String() method stringifies the entire program by iterating over all the statements
 func (p *Program) String() string {
 	var out bytes.Buffer
 	for _, s := range p.Statements {
@@ -35,6 +45,7 @@ func (p *Program) String() string {
 	return out.String()
 }
 
+// TokenLiteral() method returns the literal value of the first statement in the program
 func (p *Program) TokenLiteral() string {
 	if len(p.Statements) > 0 {
 		return p.Statements[0].TokenLiteral()
@@ -43,10 +54,7 @@ func (p *Program) TokenLiteral() string {
 	}
 }
 
-/*
-*
-Identifier
-*/
+// Identifier struct represents the identifier in the program
 type Identifier struct {
 	Token token.Token // the token.IDENT token
 	Value string
@@ -56,11 +64,7 @@ func (i *Identifier) expressionNode()      {}
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
 func (i *Identifier) String() string       { return i.Value }
 
-/*
-*
-Expression statement
-eg.: `x+5;` most scripting langs allow it so we'll allow it too
-*/
+// ExpressionStatement struct represents the expression statement in the program
 type ExpressionStatement struct {
 	Token      token.Token // the first token of the expression
 	Expression Expression
@@ -75,12 +79,7 @@ func (es *ExpressionStatement) String() string {
 	return ""
 }
 
-/*
-*
-For re-assignment. Example:
-let var = 5
-var = 10 <-----
-*/
+// AssignmentStatement struct represents the assignment statement in the program
 type AssignmentStatement struct {
 	Token token.Token // the identifier token
 	Name  *Identifier
@@ -99,10 +98,7 @@ func (as *AssignmentStatement) String() string {
 	return out.String()
 }
 
-/*
-*
-Load statement
-*/
+// LoadStatement struct represents the load statement in the program
 type LoadStatement struct {
 	Token    token.Token // the token.LOAD token
 	Filename Expression
@@ -120,7 +116,8 @@ func (ls *LoadStatement) String() string {
 	return out.String()
 }
 
-// Create a new ReadExpression type that implements Expression interface
+// ReadExpression reads all or specific rows and columns from the loaded file.
+// It can be used as an expression
 type ReadExpression struct {
 	Token    token.Token
 	Location LocationExpression
@@ -137,10 +134,7 @@ func (re *ReadExpression) String() string {
 	return out.String()
 }
 
-/*
-*
-Read statement
-*/
+// ReadStatement struct acts just ReadExpression and is used as statement
 type ReadStatement struct {
 	*ReadExpression
 	// Token    token.Token // the token.Read token
@@ -158,6 +152,7 @@ func (rs *ReadStatement) String() string {
 	return out.String()
 }
 
+// ReadFilterExpression is used to filter rows based on a condition
 type ReadFilterExpression struct {
 	Token      token.Token // the token.WHERE token
 	ColumnName string
@@ -171,10 +166,7 @@ func (le *ReadFilterExpression) String() string {
 	return fmt.Sprintf("Column: %s, Operator: %s, Value: %s", le.ColumnName, le.Operator, le.Value)
 }
 
-/*
-*
-LocationExpression
-*/
+// LocationExpression is used to specify the location of the data to be read
 type LocationExpression struct {
 	Token    token.Token // the token.IDENT token
 	RowIndex int
@@ -189,10 +181,7 @@ func (le *LocationExpression) String() string {
 	return fmt.Sprintf("Row: %d, Column: %s", le.RowIndex, le.ColIndex)
 }
 
-/*
-*
-Let statement
-*/
+// LetStatement struct holds the let statement AST node
 type LetStatement struct {
 	Token token.Token // the token.LET token
 	Name  *Identifier
@@ -214,10 +203,7 @@ func (ls *LetStatement) String() string {
 	return out.String()
 }
 
-/*
-*
-Return statement
-*/
+// ReturnStatement struct holds the return statement AST node
 type ReturnStatement struct {
 	Token       token.Token // the 'return' token
 	ReturnValue Expression
@@ -235,10 +221,7 @@ func (rs *ReturnStatement) String() string {
 	return out.String()
 }
 
-/*
-*
-Integer Expression
-*/
+// IntegerLiteral struct represents the integer literal in the program
 type IntegerLiteral struct {
 	Token token.Token
 	Value int64
@@ -270,10 +253,7 @@ func (pe *PrefixExpression) String() string {
 	return out.String()
 }
 
-/*
-*
-Infix expr
-*/
+// InfixExpression struct represents the infix expression in the program
 type InfixExpression struct {
 	Token    token.Token // The operator token, e.g. +
 	Left     Expression
@@ -294,10 +274,7 @@ func (oe *InfixExpression) String() string {
 	return out.String()
 }
 
-/*
-*
-Boolean expr
-*/
+// Boolean struct represents the boolean in the program
 type Boolean struct {
 	Token token.Token
 	Value bool
@@ -307,10 +284,7 @@ func (b *Boolean) expressionNode()      {}
 func (b *Boolean) TokenLiteral() string { return b.Token.Literal }
 func (b *Boolean) String() string       { return b.Token.Literal }
 
-/*
-*
-If Conditional expr
-*/
+// IfExpression struct represents the if expression in the program
 type IfExpression struct {
 	Token       token.Token // The 'if' token
 	Condition   Expression
@@ -334,10 +308,7 @@ func (ie *IfExpression) String() string {
 	return out.String()
 }
 
-/*
-*
-Block statement
-*/
+// BlockStatement struct represents the block statement in the program
 type BlockStatement struct {
 	Token      token.Token // the { token
 	Statements []Statement
@@ -353,10 +324,7 @@ func (bs *BlockStatement) String() string {
 	return out.String()
 }
 
-/*
-*
-Function literal
-*/
+// FunctionLiteral struct represents the function literal in the program
 type FunctionLiteral struct {
 	Token      token.Token // The 'fn' token
 	Parameters []*Identifier
@@ -379,10 +347,7 @@ func (fl *FunctionLiteral) String() string {
 	return out.String()
 }
 
-/*
-*
-Call expr
-*/
+// CallExpression struct represents the call expression in the program
 type CallExpression struct {
 	Token     token.Token // The '(' token
 	Function  Expression  // Identifier or FunctionLiteral
@@ -404,10 +369,7 @@ func (ce *CallExpression) String() string {
 	return out.String()
 }
 
-/*
-*
-String
-*/
+// StringLiteral struct represents the string literal in the p
 type StringLiteral struct {
 	Token token.Token
 	Value string
@@ -417,7 +379,7 @@ func (sl *StringLiteral) expressionNode()      {}
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string       { return sl.Token.Literal }
 
-// Array Literal Expression
+// ArrayLiteral struct represents the array literal in the program
 type ArrayLiteral struct {
 	Token    token.Token // the '[' token
 	Elements []Expression
@@ -445,7 +407,7 @@ type ArrayLiteralStatement struct {
 func (rs *ArrayLiteralStatement) statementNode()       {}
 func (rs *ArrayLiteralStatement) TokenLiteral() string { return rs.Token.Literal }
 
-// Index Expression for accessing array elements
+// IndexExpression for accessing array elements
 type IndexExpression struct {
 	Token token.Token // The '[' token
 	Left  Expression  // The array being indexed
@@ -464,6 +426,8 @@ func (al *IndexExpression) String() string {
 	return out.String()
 }
 
+// SaveStatement struct represents the save statement AST in the program.
+// It is used to save the data to a file
 type SaveStatement struct {
 	Token    token.Token // the token.SAVE token
 	Source   Expression  // Optional: identifier for custom rows

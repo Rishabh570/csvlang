@@ -1,3 +1,6 @@
+// csvlang is a simple programming language that can be used to manipulate CSV files.
+//
+// The main.go file is the entry point of the application. It reads the file path from the command line arguments and evaluates the code in the file.
 package main
 
 import (

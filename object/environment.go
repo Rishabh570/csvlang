@@ -1,3 +1,5 @@
+// Environment is a map of string to Object that represents the environment in which an object is evaluated.
+// It also contains a reference to an outer environment, which is used to implement lexical scoping (eg. enables closures)
 package object
 
 // Environment is a map of string to Object that represents the environment in which an object is evaluated.

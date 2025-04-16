@@ -1,4 +1,8 @@
-// object/object.go
+// object package is a collection of types that represent the objects in our language (eg. Integer).
+//
+// The object package contains the definition of the Object interface, which is implemented by all objects in our language.
+// All object types have a Type method that returns the type of the object, and an Inspect method that returns a string representation of the object.
+// The object package also contains the definition of the ObjectType type, which is a string that represents the type of an object.
 package object
 
 import (
@@ -28,6 +32,13 @@ const (
 	BUILTIN_OBJ = "BUILTIN"
 )
 
+// Object interface specifies the methods that all objects in our language must implement.
+//
+// - Type method returns the type of the object
+//
+// - Inspect method returns a string representation of the object.
+//
+// - ToCSV method attempts to convert the object to a CSV object. It is idempotent, meaning it should return the same CSV object if called multiple times.
 type Object interface {
 	Type() ObjectType
 	Inspect() string
@@ -37,7 +48,7 @@ type Object interface {
 
 type BuiltinFunction func(env *Environment, args ...Object) Object
 
-// Integer
+// Integer struct represents an integer object in our language.
 type Integer struct {
 	Value int64
 }
@@ -72,7 +83,7 @@ func (i *Integer) ToCSV(env *Environment) (*CSV, error) {
 	}, nil
 }
 
-// String
+// String struct represents a string object in our language.
 type String struct {
 	Value string
 }
@@ -102,7 +113,7 @@ func (s *String) ToCSV(env *Environment) (*CSV, error) {
 	}, nil
 }
 
-// Bool
+// Bool struct represents a boolean object in our language.
 type Boolean struct {
 	Value bool
 }
@@ -135,7 +146,7 @@ func (b *Boolean) ToCSV(env *Environment) (*CSV, error) {
 	}, nil
 }
 
-// Null object
+// Null struct represents a null object in our language.
 type Null struct{}
 
 func (n *Null) Type() ObjectType { return NULL_OBJ }
@@ -144,7 +155,7 @@ func (n *Null) ToCSV(env *Environment) (*CSV, error) {
 	return nil, fmt.Errorf("cannot convert null to CSV")
 }
 
-// Return
+// Return struct represents a return value object in our language.
 type ReturnValue struct {
 	Value Object
 }
@@ -155,7 +166,7 @@ func (rv *ReturnValue) ToCSV(env *Environment) (*CSV, error) {
 	return nil, fmt.Errorf("cannot convert return value to CSV")
 }
 
-// Error object
+// Error struct represents an error object in our language.
 type Error struct {
 	Message string
 }
@@ -167,6 +178,7 @@ func (e *Error) ToCSV(env *Environment) (*CSV, error) {
 }
 
 // Built-in functionality to our lang which the host lang (Go) doesn't provide
+// This allows us to add new functions to our language without modifying the host language (eg. fill_empty())
 type Builtin struct {
 	Fn BuiltinFunction
 }
@@ -177,7 +189,7 @@ func (b *Builtin) ToCSV(env *Environment) (*CSV, error) {
 	return nil, fmt.Errorf("cannot convert builtin function to CSV")
 }
 
-// Function object
+// Function struct represents a function object in our language.
 type Function struct {
 	Parameters []*ast.Identifier
 	Body       *ast.BlockStatement
@@ -203,13 +215,13 @@ func (f *Function) ToCSV(env *Environment) (*CSV, error) {
 	return nil, fmt.Errorf("cannot convert function to CSV")
 }
 
-// Stores data type info about columns in a CSV
+// ColumnType struct stores data type info about columns in a CSV object
 type ColumnType struct {
 	Name     string
 	DataType ObjectType // STRING_OBJ or INTEGER_OBJ
 }
 
-// CSV object
+// CSV struct represents a CSV object in our language.
 type CSV struct {
 	Headers     []string
 	ColumnTypes []ColumnType
@@ -257,6 +269,8 @@ func (c *CSV) Inspect() string {
 
 	return builder.String()
 }
+
+// InferColumnTypes infers the data types of the columns in the CSV object.
 func (c *CSV) InferColumnTypes() {
 	if len(c.Rows) == 0 {
 		return
@@ -278,7 +292,7 @@ func (csv *CSV) ToCSV(env *Environment) (*CSV, error) {
 	return csv, nil // Already a CSV
 }
 
-// Array object
+// Array struct represents an array object in our language.
 type Array struct {
 	Elements []Object
 }
@@ -449,6 +463,7 @@ func twoDArrayToCSV(arr *Array, existingHeaders []string, existingTypes []Column
 	}, nil
 }
 
+// TODO: this sticks out in object godoc, see how we want to position this fn
 func InferType(obj Object) ColumnType {
 	switch obj.(type) {
 	case *Integer:

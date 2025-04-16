@@ -1,3 +1,7 @@
+// evaluator package is responsible for evaluating the AST nodes and returning the result of the evaluation.
+//
+// It uses the object package to create and return the evaluated objects.
+// The evaluator package is the heart of the interpreter, where the actual evaluation of the AST nodes happens.
 package evaluator
 
 import (
@@ -17,25 +21,54 @@ var (
 	FALSE = &object.Boolean{Value: false}
 )
 
+// Eval function is the entry point to the evaluator package.
+// It takes an AST node and an environment object as input and returns the evaluated object.
+// The environment object is used to store and retrieve variables and their values.
+// The Eval function is a recursive function that evaluates the AST nodes and returns the evaluated object.
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	switch node := node.(type) {
-	// Statements
+	// ================ Statements ================
 	case *ast.Program:
 		return evalProgram(node.Statements, env)
 	case *ast.ExpressionStatement:
-		fmt.Printf("[Eval] expr stmt run for %s\n", node.String())
 		return Eval(node.Expression, env)
 	case *ast.LoadStatement:
 		return evalLoadStatement(node, env)
 	case *ast.ReadStatement:
-		fmt.Printf("read stmt...")
 		return evalReadStatement(node.ReadExpression, env)
 	case *ast.ReadExpression:
-		fmt.Printf("read expr...")
 		return evalReadStatement(node, env)
 	case *ast.SaveStatement:
 		return evalSaveStatement(node, env)
-	// Expressions
+	case *ast.BlockStatement:
+		return evalBlockStatement(node, env)
+	case *ast.ReturnStatement:
+		val := Eval(node.ReturnValue, env)
+		if isError(val) {
+			return val
+		}
+		return &object.ReturnValue{Value: val}
+	case *ast.LetStatement:
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+		env.Set(node.Name.Value, val)
+	case *ast.AssignmentStatement:
+		val := Eval(node.Value, env)
+		if isError(val) {
+			return val
+		}
+		// Check if variable exists
+		if _, ok := env.Get(node.Name.Value); !ok {
+			return newError("identifier not found: " + node.Name.Value)
+		}
+		env.Set(node.Name.Value, val)
+		return val
+	case *ast.ForLoopStatement:
+		return evalForLoopStatement(node.ForLoopExpression, env)
+
+	// ================ Expressions ================
 	case *ast.IntegerLiteral:
 		return &object.Integer{Value: node.Value}
 	case *ast.StringLiteral:
@@ -59,48 +92,17 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalInfixExpression(node.Operator, left, right)
-	case *ast.BlockStatement:
-		return evalBlockStatement(node, env)
 	case *ast.IfExpression:
 		return evalIfExpression(node, env)
-	case *ast.ReturnStatement:
-		val := Eval(node.ReturnValue, env)
-		if isError(val) {
-			return val
-		}
-		return &object.ReturnValue{Value: val}
-	case *ast.LetStatement:
-		fmt.Printf("[Eval] Evaluating LET stmt, nodeVal: %v\n", node.Value)
-		val := Eval(node.Value, env)
-		fmt.Printf("[Eval] LET val: %v\n", val)
-		if isError(val) {
-			return val
-		}
-		env.Set(node.Name.Value, val)
 	case *ast.Identifier:
-		fmt.Printf("[Eval] identifier run for %s %s\n", node.Value, node.String())
 		return evalIdentifier(node, env)
-	case *ast.AssignmentStatement:
-		val := Eval(node.Value, env)
-		if isError(val) {
-			return val
-		}
-		// Check if variable exists
-		if _, ok := env.Get(node.Name.Value); !ok {
-			return newError("identifier not found: " + node.Name.Value)
-		}
-		env.Set(node.Name.Value, val)
-		return val
 	case *ast.ArrayLiteral:
 		elements := evalExpressions(node.Elements, env)
 		if len(elements) == 1 && isError(elements[0]) {
 			return elements[0]
 		}
-		fmt.Printf("[Eval] array literal: %v\n", elements)
 		return &object.Array{Elements: elements}
-
 	case *ast.IndexExpression:
-		fmt.Printf("[Eval] index expr: %+v\n", node)
 		left := Eval(node.Left, env)
 		if isError(left) {
 			return left
@@ -109,7 +111,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(index) {
 			return index
 		}
-		fmt.Printf("[Eval] index expr: left: %v, index: %v\n", left, index)
 		return evalIndexExpression(left, index)
 	case *ast.FunctionLiteral:
 		params := node.Parameters
@@ -125,8 +126,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return args[0]
 		}
 		return applyFunction(function, args, env)
-	case *ast.ForLoopStatement:
-		return evalForLoopStatement(node.ForLoopExpression, env)
 	case *ast.ForLoopExpression:
 		return evalForLoopStatement(node, env)
 	case *ast.IndexAssignmentExpression:
@@ -137,6 +136,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	return nil
 }
 
+// evalIndexAssignmentExpression evaluates an index assignment expression.
+// Example: `array[index] = value`.
 func evalIndexAssignmentExpression(node *ast.IndexAssignmentExpression, env *object.Environment) object.Object {
 	// Evaluate the array
 	array := Eval(node.Left.Left, env)
@@ -178,6 +179,9 @@ func evalIndexAssignmentExpression(node *ast.IndexAssignmentExpression, env *obj
 	return value
 }
 
+// evalSaveStatement evaluates a save statement.
+// It saves the CSV data to a file in the specified format (CSV or JSON).
+// Example: `save csv as "output.csv"` or `save json as "output.json"`.
 func evalSaveStatement(node *ast.SaveStatement, env *object.Environment) object.Object {
 	var dataToSave *object.CSV
 
@@ -214,6 +218,7 @@ func evalSaveStatement(node *ast.SaveStatement, env *object.Environment) object.
 	}
 }
 
+// saveAsCSV saves the CSV data to a file in CSV format.
 func saveAsCSV(csvData *object.CSV, filename string) object.Object {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -243,6 +248,7 @@ func saveAsCSV(csvData *object.CSV, filename string) object.Object {
 	return NULL
 }
 
+// saveAsJSON saves the CSV data to a file in JSON format.
 func saveAsJSON(csv *object.CSV, filename string) object.Object {
 	data := map[string]interface{}{
 		"headers": csv.Headers,
@@ -261,6 +267,9 @@ func saveAsJSON(csv *object.CSV, filename string) object.Object {
 	return NULL
 }
 
+// evalForLoopStatement evaluates a for loop statement.
+// Example: `for i in array { ... }`.
+// It iterates over the elements of the array and executes the body of the loop for each element.
 func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) object.Object {
 	iterableObj := Eval(fl.Iterable, env)
 	if isError(iterableObj) {
@@ -311,6 +320,9 @@ func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) ob
 	return NULL
 }
 
+// evalIndexExpression evaluates an index expression by calling evalArrayIndexExpression.
+// Example: `array[index]`.
+// It retrieves the element at the specified index from the array.
 func evalIndexExpression(left, index object.Object) object.Object {
 	switch {
 	case left.Type() == object.ARRAY && index.Type() == object.INTEGER_OBJ:
@@ -320,6 +332,9 @@ func evalIndexExpression(left, index object.Object) object.Object {
 	}
 }
 
+// evalArrayIndexExpression evaluates an array index expression.
+// It retrieves the element at the specified index from the array.
+// Example: `array[index]`.
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObject := array.(*object.Array)
 	idx := index.(*object.Integer).Value
@@ -331,6 +346,9 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 	return arrayObject.Elements[idx]
 }
 
+// evalLoadStatement evaluates a load statement.
+// It loads a CSV file and stores its data in the environment.
+// Example: `load "data.csv"`.
 func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Object {
 	// Store the filename in the environment
 	env.Set("filename", &object.String{ls.Filename.String()})
@@ -351,7 +369,6 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 		return newError("could not read CSV headers: %s", err)
 	}
 
-	// TODO: @dev ddos magnet 👀
 	// Read all records
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -369,7 +386,6 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 	}
 
 	// Store loaded CSV data in evaluator's in-app memory
-	// TODO: is it a good idea that a language is storing computed results which can blow up in case of huge CSV data?
 	csvObj := &object.CSV{
 		Headers: headers,
 		Rows:    rows,
@@ -383,6 +399,7 @@ func evalLoadStatement(ls *ast.LoadStatement, env *object.Environment) object.Ob
 	return csvObj
 }
 
+// selectRows selects rows based on the rowIndex.
 func selectRows(rows []map[string]string, rowIndex int) []map[string]string {
 	// rowIndex -2 means select all rows
 	if rowIndex == -2 {
@@ -397,6 +414,12 @@ func selectRows(rows []map[string]string, rowIndex int) []map[string]string {
 	return []map[string]string{rows[rowIndex]}
 }
 
+// evaluateNumericCondition evaluates a numeric condition based on the operator and value.
+// It compares the column value with the compare value using the specified operator.
+// Example: `column > 5`, `column < 10`, etc.
+// It returns true if the condition is satisfied, otherwise false.
+// The column value is expected to be a string that can be converted to an integer.
+// The compare value is an integer.
 func evaluateNumericCondition(columnValue string, operator string, compareValue int64) bool {
 	// Convert column value to number
 	rowVal, err := strconv.ParseInt(columnValue, 10, 64)
@@ -422,6 +445,8 @@ func evaluateNumericCondition(columnValue string, operator string, compareValue 
 	}
 }
 
+// evaluateStringCondition evaluates a string condition based on the operator and value.
+// Example: `column == "value"`, `column != "value"`, etc.
 func evaluateStringCondition(columnValue string, operator string, compareValue string) bool {
 	switch operator {
 	case "==":
@@ -441,6 +466,8 @@ func evaluateStringCondition(columnValue string, operator string, compareValue s
 	}
 }
 
+// evaluateBooleanCondition evaluates a boolean condition based on the operator and value.
+// Example: `column == true`, `column != false`, etc.
 func evaluateBooleanCondition(columnValue string, operator string, compareValue bool) bool {
 	rowVal, err := strconv.ParseBool(columnValue)
 	if err != nil {
@@ -457,6 +484,10 @@ func evaluateBooleanCondition(columnValue string, operator string, compareValue 
 	}
 }
 
+// evaluateCondition evaluates a condition based on the column value, operator, and compare value.
+// It checks if the column value satisfies the condition specified in the where clause.
+// Example: `column > 5`, `column == "value"`, etc.
+// It returns true if the condition is satisfied, otherwise false.
 func evaluateCondition(row map[string]string, where *ast.ReadFilterExpression, env *object.Environment) bool {
 	columnValue := row[where.ColumnName]
 
@@ -480,6 +511,8 @@ func evaluateCondition(row map[string]string, where *ast.ReadFilterExpression, e
 	}
 }
 
+// filterRows filters the rows based on the where clause.
+// It checks if each row satisfies the condition specified in the where clause.
 func filterRows(rows []map[string]string, where *ast.ReadFilterExpression, env *object.Environment) []map[string]string {
 	var filtered []map[string]string
 
@@ -492,6 +525,7 @@ func filterRows(rows []map[string]string, where *ast.ReadFilterExpression, env *
 	return filtered
 }
 
+// extractColumns extracts the specified columns from the rows.
 func extractColumns(rows []map[string]string, column string) *object.Array {
 	var values object.Array
 
@@ -508,9 +542,9 @@ func extractColumns(rows []map[string]string, column string) *object.Array {
 	return &values
 }
 
+// evalReadStatement evaluates a read statement.
+// It retrieves the CSV data from the environment and filters it based on the specified conditions.
 func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.Object {
-	fmt.Printf("[evalReadStatement] type: %s, lit: %s, row: %d, col: %s\n", rs.Token.Type, rs.Token.Literal, rs.Location.RowIndex, rs.Location.ColIndex)
-
 	// Retrieve stored CSV object
 	csv, ok := env.Get("csv")
 	if !ok {
@@ -536,6 +570,8 @@ func evalReadStatement(rs *ast.ReadExpression, env *object.Environment) object.O
 	return &object.CSV{Rows: rows, Headers: csvObj.Headers, ColumnTypes: csvObj.ColumnTypes}
 }
 
+// evalBlockStatement evaluates a block statement.
+// It executes each statement in the block and returns the result of the last statement.
 func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) object.Object {
 	var result object.Object
 	for _, statement := range block.Statements {
@@ -551,10 +587,9 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 	return result
 }
 
-func evalExpressions(
-	exps []ast.Expression,
-	env *object.Environment,
-) []object.Object {
+// evalExpressions evaluates a list of expressions and returns the evaluated objects.
+// It returns an array of evaluated objects.
+func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Object {
 	var result []object.Object
 
 	for _, e := range exps {
@@ -567,6 +602,10 @@ func evalExpressions(
 	return result
 }
 
+// applyFunction applies a function to the given arguments.
+// It evaluates the function and its arguments, and returns the result of the function call.
+// It handles both user-defined functions and built-in functions.
+// Example: `fn(arg1, arg2)` or `builtin(arg1, arg2)`.
 func applyFunction(fn object.Object, args []object.Object, env *object.Environment) object.Object {
 	switch fn := fn.(type) {
 	case *object.Function:
@@ -580,10 +619,11 @@ func applyFunction(fn object.Object, args []object.Object, env *object.Environme
 	}
 }
 
-func extendFunctionEnv(
-	fn *object.Function,
-	args []object.Object,
-) *object.Environment {
+// extendFunctionEnv extends the function environment with the given arguments.
+// It creates a new environment for the function call and sets the parameters to the corresponding arguments.
+// This allows the function to access its arguments using the parameter names.
+// Example: `fn(param1, param2)`.
+func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
 	env := object.NewEnclosedEnvironment(fn.Env)
 	for paramIdx, param := range fn.Parameters {
 		env.Set(param.Value, args[paramIdx])
@@ -591,10 +631,13 @@ func extendFunctionEnv(
 	return env
 }
 
+// evalProgram evaluates a program by executing each statement in the program.
+// It returns the result of the last statement in the program.
+// Example: `let x = 5; let y = 10; x + y;`.
+// The result of the last statement (x + y) is returned.
 func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	var result object.Object
 	for _, statement := range stmts {
-		fmt.Println("evaluating stmt: ", statement.String())
 		result = Eval(statement, env)
 
 		switch result := result.(type) {
@@ -608,6 +651,7 @@ func evalProgram(stmts []ast.Statement, env *object.Environment) object.Object {
 	return result
 }
 
+// nativeBoolToBooleanObject converts a native boolean to a Boolean object.
 func nativeBoolToBooleanObject(input bool) *object.Boolean {
 	if input {
 		return TRUE
@@ -615,6 +659,9 @@ func nativeBoolToBooleanObject(input bool) *object.Boolean {
 	return FALSE
 }
 
+// evalPrefixExpression evaluates a prefix expression.
+// It applies the operator to the right operand and returns the result.
+// Example: `!true`, `-5`, etc.
 func evalPrefixExpression(operator string, right object.Object) object.Object {
 	switch operator {
 	case "!":
@@ -626,27 +673,7 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 	}
 }
 
-// func applyFunction(fn object.Object, args []object.Object) object.Object {
-// 	function, ok := fn.(*object.Function)
-// 	if !ok {
-// 		return newError("not a function: %s", fn.Type())
-// 	}
-// 	extendedEnv := extendFunctionEnv(function, args)
-// 	evaluated := Eval(function.Body, extendedEnv)
-// 	return unwrapReturnValue(evaluated)
-// }
-
-// func extendFunctionEnv(
-// 	fn *object.Function,
-// 	args []object.Object,
-// ) *object.Environment {
-// 	env := object.NewEnclosedEnvironment(fn.Env)
-// 	for paramIdx, param := range fn.Parameters {
-// 		env.Set(param.Value, args[paramIdx])
-// 	}
-// 	return env
-// }
-
+// unwrapReturnValue unwraps the return value from a function call.
 func unwrapReturnValue(obj object.Object) object.Object {
 	if returnValue, ok := obj.(*object.ReturnValue); ok {
 		return returnValue.Value
@@ -654,11 +681,10 @@ func unwrapReturnValue(obj object.Object) object.Object {
 	return obj
 }
 
-func evalIdentifier(
-	node *ast.Identifier,
-	env *object.Environment,
-) object.Object {
-	fmt.Printf("[evalIdentifier] starting, node.Value: %s, node.String(): %s\n", node.Value, node.String())
+// evalIdentifier evaluates an identifier.
+// It retrieves the value of the identifier from the environment.
+// Example: `x`, `y`, etc.
+func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
 	if val, ok := env.Get(node.Value); ok {
 		fmt.Printf("[evalIdentifier] returning val: %s\n", val)
 		return val
@@ -672,6 +698,9 @@ func evalIdentifier(
 	return newError("identifier not found: " + node.Value)
 }
 
+// evalIfExpression evaluates an if expression.
+// It checks the condition and executes the consequence or alternative block based on the condition's truthiness.
+// Example: `if (condition) { ... } else { ... }`.
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
 	condition := Eval(ie.Condition, env)
 	if isError(condition) {
@@ -687,6 +716,8 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
 	}
 }
 
+// isTruthy checks if an object is truthy.
+// It returns true if the object is not NULL, TRUE, or FALSE.
 func isTruthy(obj object.Object) bool {
 	switch obj {
 	case NULL:
@@ -700,10 +731,10 @@ func isTruthy(obj object.Object) bool {
 	}
 }
 
-func evalInfixExpression(
-	operator string,
-	left, right object.Object,
-) object.Object {
+// evalInfixExpression evaluates an infix expression.
+// It applies the operator to the left and right operands and returns the result.
+// Example: `5 + 10`, `x > y`, etc.
+func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
@@ -722,10 +753,11 @@ func evalInfixExpression(
 	}
 }
 
-func evalStringInfixExpression(
-	operator string,
-	left, right object.Object,
-) object.Object {
+// evalStringInfixExpression evaluates a string infix expression.
+// It applies the operator to the left and right string operands and returns the result.
+// Example: `"hello" + "world"`.
+// It only supports the "+" operator for string concatenation.
+func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
 	if operator != "+" {
 		return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	}
@@ -734,10 +766,10 @@ func evalStringInfixExpression(
 	return &object.String{Value: leftVal + rightVal}
 }
 
-func evalIntegerInfixExpression(
-	operator string,
-	left, right object.Object,
-) object.Object {
+// evalIntegerInfixExpression evaluates an integer infix expression.
+// It applies the operator to the left and right integer operands and returns the result.
+// Example: `5 + 10`, `x > y`, etc.
+func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
 	leftVal := left.(*object.Integer).Value
 	rightVal := right.(*object.Integer).Value
 	switch operator {
@@ -763,6 +795,9 @@ func evalIntegerInfixExpression(
 	}
 }
 
+// evalMinusPrefixOperatorExpression evaluates a prefix minus operator.
+// It negates the value of the right operand.
+// Example: `-5`, `-x`, etc.
 func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 	if right.Type() != object.INTEGER_OBJ {
 		return newError("unknown operator: -%s", right.Type())
@@ -771,6 +806,9 @@ func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 	return &object.Integer{Value: -value}
 }
 
+// evalBangOperatorExpression evaluates a prefix bang operator.
+// It negates the truthiness of the right operand.
+// Example: `!true`, `!false`, etc.
 func evalBangOperatorExpression(right object.Object) object.Object {
 	switch right {
 	case TRUE:
@@ -784,13 +822,14 @@ func evalBangOperatorExpression(right object.Object) object.Object {
 	}
 }
 
-/*
-Error
-*/
+// newError creates a new error object with the specified format and arguments.
+// It formats the error message using fmt.Sprintf and returns an Error object.
+// Example: `newError("error: %s", "something went wrong")`.
 func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
 }
 
+// isError checks if an object is an error.
 func isError(obj object.Object) bool {
 	if obj != nil {
 		return obj.Type() == object.ERROR_OBJ

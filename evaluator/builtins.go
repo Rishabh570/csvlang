@@ -199,8 +199,6 @@ var builtins = map[string]*object.Builtin{
 					return newError("argument must be CSV, got=%s", args[0].Type())
 				}
 
-				fmt.Printf("removing duplicates from the provided CSV object: %v\n", csv)
-
 				return removeDuplicates(csv)
 			}
 
@@ -210,8 +208,6 @@ var builtins = map[string]*object.Builtin{
 				if !ok {
 					return newError("argument must be CSV, got=%s", args[0].Type())
 				}
-
-				fmt.Printf("removing duplicates from the provided array: %v\n", csv)
 
 				return removeDuplicatesFrom2dArray(csv, env)
 			}
@@ -407,10 +403,8 @@ func removeDuplicatesFrom2dArray(arr *object.Array, env *object.Environment) *ob
 			key[i] = ele.Inspect()
 		}
 		rowKey := strings.Join(key, "|")
-		fmt.Printf("rowKey:: %s\n", rowKey)
 
 		if !seen[rowKey] {
-			fmt.Printf("setting rowKey: %s to true\n", rowKey)
 			seen[rowKey] = true
 
 			// Create row map for CSV
@@ -422,8 +416,6 @@ func removeDuplicatesFrom2dArray(arr *object.Array, env *object.Environment) *ob
 
 		}
 	}
-
-	fmt.Printf("uniqueRows: %+v\n", uniqueRows)
 
 	// Return new CSV object with unique rows
 	return &object.CSV{

@@ -1,3 +1,7 @@
+// repl package is responsible for handling the file mode (repl mode is not supported) which reads the entire file content and evaluates the entire program at once.
+//
+// This is useful when you want to use variables defined on one line in another line.
+// StartFileAllAtOnce reads the entire file content and evaluates the entire program at once.
 package repl
 
 import (
@@ -41,30 +45,8 @@ func Start(in io.Reader, out io.Writer) {
 	}
 }
 
-// func StartFile(path string) {
-// 	code, err := os.ReadFile(path)
-// 	if err != nil {
-// 		fmt.Printf("Error reading file: %s\n", err)
-// 		os.Exit(1)
-// 	}
-// 	// fmt.Printf("Code: %s\n", string(code))
-
-// 	l := lexer.New(string(code))
-// 	p := parser.New(l)
-
-// 	program := p.ParseProgram()
-// 	// if len(p.Errors()) != 0 {
-// 	// 	printParserErrors(os.Stdout, p.Errors())
-// 	// 	return
-// 	// }
-
-// 	evaluated := evaluator.Eval(program, object.NewEnvironment())
-// 	if evaluated != nil {
-// 		io.WriteString(os.Stdout, evaluated.Inspect())
-// 		io.WriteString(os.Stdout, "\n")
-// 	}
-// }
-
+// StartFileAllAtOnce reads the entire file content and evaluates the entire program at once.
+// This helps when, for instance, you want to use variables defined on one line in another line.
 func StartFileAllAtOnce(path string) {
 	// Read the entire file content
 	content, err := os.ReadFile(path)
@@ -88,7 +70,7 @@ func StartFileAllAtOnce(path string) {
 
 	// Evaluate each statement in the program
 	for _, statement := range program.Statements {
-		fmt.Printf("🚧 evaluating program statement: %s\n", statement.String())
+		// fmt.Printf("🚧 evaluating program statement: %s\n", statement.String())
 		evaluated := evaluator.Eval(statement, env)
 		if evaluated != nil {
 			io.WriteString(os.Stdout, evaluated.Inspect())
