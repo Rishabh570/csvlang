@@ -31,6 +31,12 @@ func main() {
 		return
 	}
 
+	// file path must have .csl extension
+	if len(*filePath) < 4 || (*filePath)[len(*filePath)-4:] != ".csl" {
+		fmt.Println("File path must have .csl extension")
+		return
+	}
+
 	// Output the provided file path.
 	fmt.Printf("File path: %s\n", *filePath)
 
