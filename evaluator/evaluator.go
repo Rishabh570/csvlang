@@ -277,11 +277,19 @@ func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) ob
 	}
 
 	var elements []object.Object
-	switch iterable := iterableObj.(type) {
-	case *object.Array:
-		elements = iterable.Elements
-	default:
+	var arr *object.Array
+	var ok bool
+
+	// Get array reference and its elements
+	if arr, ok = iterableObj.(*object.Array); !ok {
 		return newError("for loop iterable must be ARRAY, got %s", iterableObj.Type())
+	}
+	elements = arr.Elements
+
+	// Get the name of the iterable variable (if it's an identifier)
+	var iterableName string
+	if ident, ok := fl.Iterable.(*ast.Identifier); ok {
+		iterableName = ident.Value
 	}
 
 	for i, element := range elements {
@@ -290,31 +298,37 @@ func evalForLoopStatement(fl *ast.ForLoopExpression, env *object.Environment) ob
 
 		// Bind index and element
 		loopEnv.Set(fl.IndexName.Value, &object.Integer{Value: int64(i)})
+
+		// Store original element value for later comparison
+		originalElement := element
 		loopEnv.Set(fl.ElementName.Value, element)
 
-		fmt.Printf("[evalForLoopStatement] evaluating block statment: %+v\n", fl.Body)
 		// Evaluate body
-		Eval(fl.Body, loopEnv)
-
-		// Update original array if modified
-		if arr, ok := iterableObj.(*object.Array); ok {
-			if val, ok := loopEnv.Get(fl.ElementName.Value); ok {
-				fmt.Printf("[evalForLoopStatement] updating element: %+v\n", val.Inspect())
-				arr.Elements[i] = val
-			}
+		result := Eval(fl.Body, loopEnv)
+		if isError(result) {
+			return result
 		}
 
-		// Copy any modified outer scope variables back to parent environment
-		for name, val := range loopEnv.GetStore() {
-			if _, exists := env.Get(name); exists {
-				fmt.Printf("[evalForLoopStatement] setting %s to %s\n", name, val.Inspect())
-				env.Set(name, val)
-			}
+		// CASE 1: Handle direct element variable modification
+		if elementVal, ok := loopEnv.Get(fl.ElementName.Value); ok && elementVal != originalElement {
+			arr.Elements[i] = elementVal
 		}
 
-		// unset values from the loopEnv set in this iteration of the for loop
-		// loopEnv.Unset(fl.IndexName.Value)
-		// loopEnv.Unset(fl.ElementName.Value)
+		// CASE 2: Handle index-based assignment (val[i] = ...)
+		// This updates the array in the parent environment
+		if iterableName != "" {
+			if arrayVal, exists := env.Get(iterableName); exists {
+				if updatedArray, ok := arrayVal.(*object.Array); ok {
+					// Make sure any array modifications are preserved
+					arr = updatedArray
+				}
+			}
+		}
+	}
+
+	// Ensure the modified array is saved back to parent environment
+	if iterableName != "" {
+		env.Set(iterableName, arr)
 	}
 
 	return NULL
@@ -686,7 +700,7 @@ func unwrapReturnValue(obj object.Object) object.Object {
 // Example: `x`, `y`, etc.
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
 	if val, ok := env.Get(node.Value); ok {
-		fmt.Printf("[evalIdentifier] returning val: %s\n", val)
+		fmt.Printf("[evalIdentifier] returning value for identifier: %+v: %s\n", node.Token, val)
 		return val
 	}
 
