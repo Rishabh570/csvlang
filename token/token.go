@@ -40,6 +40,7 @@ const (
 	// Delimiters
 	COMMA     = "," // acts as a delimiter in arrays
 	SEMICOLON = ";"
+	NEWLINE   = "\\n" // Add this line
 
 	LPAREN   = "("
 	RPAREN   = ")"

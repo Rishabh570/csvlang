@@ -58,6 +58,8 @@ func (l *Lexer) readComment() token.Token {
 	for {
 		l.readChar()
 
+		// we don't want a single line comment to bleed into the next line
+		// so we stop reading when we reach a newline or the end of the input
 		if l.ch == 0 || l.ch == '\n' {
 			break
 		}
@@ -107,7 +109,7 @@ func (l *Lexer) readString() string {
 }
 
 func (l *Lexer) skipWhitespace() {
-	for l.ch == ' ' || l.ch == '\t' || l.ch == '\n' || l.ch == '\r' {
+	for l.ch == ' ' || l.ch == '\t' || l.ch == '\r' {
 		l.readChar()
 	}
 }
@@ -169,6 +171,10 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACKET, l.ch)
 	case ']':
 		tok = newToken(token.RBRACKET, l.ch)
+	case '\n':
+		tok = newToken(token.NEWLINE, l.ch)
+		l.Line++     // Increment line number
+		l.Column = 0 // Reset column counter
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF

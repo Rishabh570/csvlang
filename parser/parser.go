@@ -137,7 +137,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 	program.Statements = []ast.Statement{}
 	for p.curToken.Type != token.EOF {
-		if p.curTokenIs(token.SINGLE_LINE_COMMENT) {
+		if p.curTokenIs(token.NEWLINE) || p.curTokenIs(token.SINGLE_LINE_COMMENT) {
 			p.nextToken()
 			continue
 		}
@@ -225,7 +225,7 @@ func (p *Parser) parseSaveStatement() *ast.SaveStatement {
 		return nil
 	}
 
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 
@@ -288,13 +288,13 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
 	if prefix == nil {
 		fmt.Printf("[parseExpression] no prefix parse fn...\n")
-		p.noPrefixParseFnError(p.curToken.Type)
+		p.noPrefixParseFnError(p.curToken)
 		return nil
 	}
 	leftExp := prefix()
 	fmt.Printf("[parseExpression] leftExp: %s\n", leftExp)
 
-	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+	for !p.isTerminator() && precedence < p.peekPrecedence() {
 		fmt.Printf("parsing infix token, type: %s, lit: %s\n", p.peekToken.Type, p.peekToken.Literal)
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
@@ -340,7 +340,7 @@ func (p *Parser) parseExpressionStatement() ast.Statement {
 	}
 
 	stmt.Expression = p.parseExpression(LOWEST)
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 	return stmt
@@ -359,7 +359,7 @@ func (p *Parser) parseAssignmentStatement() *ast.AssignmentStatement {
 
 	stmt.Value = p.parseExpression(LOWEST)
 
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 
@@ -426,6 +426,12 @@ func (p *Parser) parseBlockStatement() *ast.BlockStatement {
 	block.Statements = []ast.Statement{}
 	p.nextToken()
 	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		// Skip newlines or comments within the block
+		if p.curTokenIs(token.NEWLINE) || p.curTokenIs(token.SINGLE_LINE_COMMENT) {
+			p.nextToken()
+			continue
+		}
+
 		stmt := p.parseStatement()
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
@@ -493,7 +499,7 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 	p.nextToken()
 
 	stmt.ReturnValue = p.parseExpression(LOWEST)
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 	return stmt
@@ -512,7 +518,7 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	p.nextToken()
 
 	stmt.Value = p.parseExpression(LOWEST)
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 	return stmt
@@ -565,7 +571,6 @@ func (p *Parser) parseForLoopAsExpression() ast.Expression {
 }
 
 func (p *Parser) parseForLoopExpression() *ast.ForLoopExpression {
-	fmt.Printf("[parseForLoopExpression] starting...\n")
 	stmt := &ast.ForLoopExpression{Token: p.curToken}
 
 	// Parse index identifier
@@ -604,7 +609,7 @@ func (p *Parser) parseForLoopExpression() *ast.ForLoopExpression {
 		return nil
 	}
 
-	if p.peekTokenIs(token.SEMICOLON) {
+	for p.isTerminator() {
 		p.nextToken()
 	}
 
@@ -710,7 +715,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 		locExpr.RowIndex = -2 // -2 is a special value to denote asterisk
 	}
 
-	if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.EOF) {
+	if p.isTerminator() {
 		p.nextToken()
 		return locExpr
 	}
@@ -736,7 +741,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 		locExpr.ColIndex = p.curToken.Literal
 
-		if p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.EOF) {
+		if p.isTerminator() {
 			p.nextToken()
 			return locExpr
 		}
@@ -797,7 +802,7 @@ func (p *Parser) parseLocationExpression() ast.LocationExpression {
 
 	locExpr.Filter = &filterExpr
 
-	if p.peekTokenIs(token.SEMICOLON) {
+	if p.isTerminator() {
 		p.nextToken()
 	}
 
@@ -816,7 +821,12 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
 }
 
-func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	msg := fmt.Sprintf("no prefix parse function for %s found", t)
+func (p *Parser) noPrefixParseFnError(t token.Token) {
+	msg := fmt.Sprintf("no prefix parse function for token type: %s and literal: %s", t.Type, t.Literal)
 	p.addError(msg)
+}
+
+// isTerminator checks if the token is a statement terminator
+func (p *Parser) isTerminator() bool {
+	return p.peekTokenIs(token.SEMICOLON) || p.peekTokenIs(token.NEWLINE)
 }

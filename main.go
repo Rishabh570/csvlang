@@ -42,4 +42,5 @@ func main() {
 
 	// repl.StartFile(*filePath)
 	repl.StartFileAllAtOnce(*filePath)
+	// repl.StartLexer(*filePath)
 }

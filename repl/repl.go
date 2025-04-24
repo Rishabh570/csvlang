@@ -15,6 +15,7 @@ import (
 	"github.com/Rishabh570/csvlang/lexer"
 	"github.com/Rishabh570/csvlang/object"
 	"github.com/Rishabh570/csvlang/parser"
+	"github.com/Rishabh570/csvlang/token"
 )
 
 const PROMPT = ">> "
@@ -60,6 +61,15 @@ func StartFileAllAtOnce(path string) {
 
 	// Parse and evaluate the entire program
 	l := lexer.New(string(content))
+	// print all tokens from lexer
+	// for {
+	// 	tok := l.NextToken()
+	// 	if tok.Type == token.EOF {
+	// 		break
+	// 	}
+	// 	fmt.Printf("🚧 reading program token: %s\n", tok)
+	// }
+
 	p := parser.New(l)
 
 	program := p.ParseProgram()
@@ -70,7 +80,7 @@ func StartFileAllAtOnce(path string) {
 
 	// Evaluate each statement in the program
 	for _, statement := range program.Statements {
-		// fmt.Printf("🚧 evaluating program statement: %s\n", statement.String())
+		fmt.Printf("🚧 evaluating program statement: %s\n", statement.String())
 		evaluated := evaluator.Eval(statement, env)
 		if evaluated != nil {
 			io.WriteString(os.Stdout, evaluated.Inspect())
@@ -82,6 +92,27 @@ func StartFileAllAtOnce(path string) {
 			}
 		}
 	}
+}
+
+func StartLexer(path string) {
+	// Read the entire file content
+	content, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Error reading file: %s\n", err)
+		os.Exit(1)
+	}
+
+	// Parse and evaluate the entire program
+	l := lexer.New(string(content))
+	// print all tokens from lexer
+	for {
+		tok := l.NextToken()
+		if tok.Type == token.EOF {
+			break
+		}
+		fmt.Printf("🚧 reading program token: %s\n", tok)
+	}
+
 }
 
 func StartFile(path string) {
