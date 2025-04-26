@@ -20,22 +20,4 @@ jobs:
 
       - name: Run Tests
         run: |
-          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
-          go tool cover -func=coverage.txt
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage.txt
-          flags: unittests
-          name: codecov-umbrella
-          fail_ci_if_error: true
-
-      - name: Generate coverage report
-        run: go tool cover -html=coverage.txt -o coverage.html
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage.html
+          go test -v -race ./...
