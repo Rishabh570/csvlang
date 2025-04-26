@@ -1,4 +1,4 @@
-![](./public/logo.png)
+![](./public/logo-transparent.png)
 
 csvlang is a dynamic language to interact with CSV files. It is a domain-specific language that allows you to read, filter, modify, and export data from CSV files easily.
 
