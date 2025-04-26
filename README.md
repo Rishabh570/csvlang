@@ -1,6 +1,6 @@
 ![](./public/logo.png)
 
-csvlang is a language to interact with CSV files. It is a domain-specific language that allows you to read and add new rows to a CSV file.
+csvlang is a dynamic language to interact with CSV files. It is a domain-specific language that allows you to read, filter, modify, and export data from CSV files easily.
 
 Documentation about csvlang commands can be found at [godoc.org](https://pkg.go.dev/github.com/rishabh570/csvlang).
 
@@ -16,11 +16,61 @@ Documentation about csvlang commands can be found at [godoc.org](https://pkg.go.
 
 ## Features
 
-- Read all or specific rows or columns
-- Fill empty cells with any fallback value you want
-- Remove duplicate rows
-- Built-in functions to calculate the sum, average, and count of values in a column
-- Save and export the CSV file as a JSON or CSV file
+### Read all or specific rows or columns
+
+```
+load data.csv
+
+let rows = read row *;
+let firstRow = read row 0;
+let firstColumn = read row * col 0;
+let filteredRows = read row * col * where age > 20;
+```
+
+### Fill empty cells with a fallback value
+
+```
+load data.csv
+
+let rows = read row * col amount where age > 20;
+let polyfilledRows = fill(rows, "name", "John Doe");
+```
+
+### Remove duplicate rows
+
+```
+load data.csv
+
+let rows = read row *;
+
+let uniqueRows = unique(rows);
+```
+
+### Built-in statistical functions 
+
+To calculate the sum, average, and count of values in a column.
+
+```
+load data.csv
+
+let rows = read row * col amount where age > 20;
+
+let totalAmount = sum(rows);
+let averageAmount = avg(rows);
+let countAmount = count(rows);
+```
+
+
+### Export to JSON or CSV file
+
+```
+load data.csv
+
+let rows = read row * where age > 20;
+
+save rows as output.csv;
+save rows as output.json;
+```
 
 ## Installation
 

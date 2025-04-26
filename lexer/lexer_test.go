@@ -7,8 +7,7 @@ import (
 )
 
 func TestNextTokenOne(t *testing.T) {
-	input := `
-	load input.csv
+	input := `load input.csv
 	read row 0 col 0
 	read row 0
 	save as output.csv
@@ -23,28 +22,35 @@ func TestNextTokenOne(t *testing.T) {
 	}{
 		{token.LOAD, "load"},
 		{token.IDENT, "input.csv"},
+		{token.NEWLINE, "\n"},
 		{token.READ, "read"},
 		{token.ROW, "row"},
 		{token.INT, "0"},
 		{token.COL, "col"},
 		{token.INT, "0"},
+		{token.NEWLINE, "\n"},
 		{token.READ, "read"},
 		{token.ROW, "row"},
 		{token.INT, "0"},
+		{token.NEWLINE, "\n"},
 		{token.SAVE, "save"},
 		{token.AS, "as"},
 		{token.IDENT, "output.csv"},
+		{token.NEWLINE, "\n"},
 		{token.SAVE, "save"},
 		{token.AS, "as"},
 		{token.IDENT, "output.json"},
+		{token.NEWLINE, "\n"},
 		{token.SAVE, "save"},
 		{token.IDENT, "myRows"},
 		{token.AS, "as"},
 		{token.IDENT, "output.csv"},
+		{token.NEWLINE, "\n"},
 		{token.SAVE, "save"},
 		{token.IDENT, "myRows"},
 		{token.AS, "as"},
 		{token.IDENT, "output.json"},
+		{token.NEWLINE, "\n"},
 		{token.EOF, ""},
 	}
 
@@ -83,8 +89,8 @@ func TestNextTokenTwo(t *testing.T) {
 	10 == 10;
 	10 != 9;
 	"foobar"
-"foo bar"
-	`
+	"foo bar"
+`
 	tests := []struct {
 		expectedType    token.TokenType
 		expectedLiteral string
@@ -94,11 +100,14 @@ func TestNextTokenTwo(t *testing.T) {
 		{token.ASSIGN, "="},
 		{token.INT, "5"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.LET, "let"},
 		{token.IDENT, "ten"},
 		{token.ASSIGN, "="},
 		{token.INT, "10"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
+
 		{token.LET, "let"},
 		{token.IDENT, "add"},
 		{token.ASSIGN, "="},
@@ -109,12 +118,16 @@ func TestNextTokenTwo(t *testing.T) {
 		{token.IDENT, "y"},
 		{token.RPAREN, ")"},
 		{token.LBRACE, "{"},
+		{token.NEWLINE, "\n"},
 		{token.IDENT, "x"},
 		{token.PLUS, "+"},
 		{token.IDENT, "y"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.RBRACE, "}"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
+		{token.NEWLINE, "\n"},
 		{token.LET, "let"},
 		{token.IDENT, "result"},
 		{token.ASSIGN, "="},
@@ -125,18 +138,22 @@ func TestNextTokenTwo(t *testing.T) {
 		{token.IDENT, "ten"},
 		{token.RPAREN, ")"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.BANG, "!"},
 		{token.MINUS, "-"},
 		{token.SLASH, "/"},
 		{token.ASTERISK, "*"},
 		{token.INT, "5"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.INT, "5"},
 		{token.LT, "<"},
 		{token.INT, "10"},
 		{token.GT, ">"},
 		{token.INT, "5"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
+		{token.NEWLINE, "\n"},
 		{token.IF, "if"},
 		{token.LPAREN, "("},
 		{token.INT, "5"},
@@ -144,27 +161,38 @@ func TestNextTokenTwo(t *testing.T) {
 		{token.INT, "10"},
 		{token.RPAREN, ")"},
 		{token.LBRACE, "{"},
+		{token.NEWLINE, "\n"},
 		{token.RETURN, "return"},
 		{token.TRUE, "true"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.RBRACE, "}"},
 		{token.ELSE, "else"},
 		{token.LBRACE, "{"},
+		{token.NEWLINE, "\n"},
 		{token.RETURN, "return"},
 		{token.FALSE, "false"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.RBRACE, "}"},
+		{token.NEWLINE, "\n"},
+		{token.NEWLINE, "\n"},
 		{token.INT, "10"},
 		{token.EQ, "=="},
 		{token.INT, "10"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.INT, "10"},
 		{token.NOT_EQ, "!="},
 		{token.INT, "9"},
 		{token.SEMICOLON, ";"},
+		{token.NEWLINE, "\n"},
 		{token.STRING, "foobar"},
+		{token.NEWLINE, "\n"},
 		{token.STRING, "foo bar"},
-		{token.EOF, ""},
+		{token.NEWLINE, "\n"},
+		// {token.EOF, ""},
+		// {token.EOF, ""},
 		{token.EOF, ""},
 	}
 	l := New(input)
