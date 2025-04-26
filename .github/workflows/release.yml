@@ -9,8 +9,9 @@ jobs:
   goreleaser:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  
-      id-token: read  
+      contents: write
+      packages: write
+      id-token: write
     
     steps:
       - name: Checkout code
@@ -27,6 +28,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
+          distribution: goreleaser
           version: latest
           args: release --clean
         env:
