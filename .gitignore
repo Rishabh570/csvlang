@@ -1,0 +1,7 @@
+**/.DS_Store
+
+# Dummy data and script files
+**/*.csv
+**/*.csl
+# Added by goreleaser init:
+dist/

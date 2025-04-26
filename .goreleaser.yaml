@@ -1,0 +1,73 @@
+# This is an example .goreleaser.yml file with some sensible defaults.
+# Make sure to check the documentation at https://goreleaser.com
+
+# The lines below are called `modelines`. See `:help modeline`
+# Feel free to remove those if you don't want/need to use them.
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# vim: set ts=2 sw=2 tw=0 fo=cnqoj
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      # Disables CGO, creating statically linked binaries that don't depend on C libraries, making them more portable.
+      - CGO_ENABLED=0
+    # Sets all timestamps in the compiled binary to the commit timestamp for reproducible builds.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    # Removes file system paths from the compiled binary, making builds more reproducible and preventing leaking of development environment paths.
+    flags: -trimpath
+    ldflags:
+      # `-s -w`: Reduces binary size by removing debug information (-s) and DWARF symbol table (-w).
+      # Sets values for variables in your code, injecting version and commit information at build time.
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
+    # Lists operating systems to build for
+    goos:
+      - linux
+      - windows
+      - darwin
+    # Lists architectures to build for
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    # this name template makes the OS and Arch compatible with the results of `uname`.
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+# Generates a file named "checksums.txt" containing hash values (usually SHA256) of all release artifacts. This allows users to verify the integrity of downloaded files.
+checksum:
+  name_template: "checksums.txt"
+
+# github: Configures GitHub as the release target
+#   owner: yourusername: The GitHub username or organization that owns the repository (this should be changed to your actual GitHub username)
+#   name: csvlang: The repository name on GitHub
+# prerelease: auto: Automatically determines if the release should be marked as a prerelease based on the version (e.g., versions with pre-release identifiers like v1.0.0-beta.1 will be marked as prereleases)
+release:
+  github:
+    owner: rishabh570
+    name: csvlang
+  prerelease: auto
+
+changelog:
+  # Sorts the commit messages in descending order (recent first) in the generated changelog
+  sort: desc
+  filters:
+    # Lists patterns for commit messages that should be excluded from the changelog
+    exclude:
+      - "^docs:"
+      - "^test:"
