@@ -5,3 +5,5 @@
 **/*.csl
 # Added by goreleaser init:
 dist/
+
+csvlang
