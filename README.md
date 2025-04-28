@@ -1,13 +1,13 @@
 ![](./public/logo-transparent.png)
 
-[![Tests](https://github.com/rishabh570/csvlang/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/rishabh570/csvlang/actions/workflows/unit-tests.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/rishabh570/csvlang)](https://goreportcard.com/report/github.com/rishabh570/csvlang)
+[![Tests](https://github.com/Rishabh570/csvlang/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/Rishabh570/csvlang/actions/workflows/unit-tests.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Rishabh570/csvlang)](https://goreportcard.com/report/github.com/Rishabh570/csvlang)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Go Reference](https://pkg.go.dev/badge/github.com/rishabh570/csvlang.svg)](https://pkg.go.dev/github.com/rishabh570/csvlang)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Rishabh570/csvlang.svg)](https://pkg.go.dev/github.com/Rishabh570/csvlang)
 
 csvlang is a dynamic language to interact with CSV files. It is a domain-specific language that allows you to read, filter, modify, and export data from CSV files easily.
 
-Documentation about csvlang commands can be found at [godoc.org](https://pkg.go.dev/github.com/rishabh570/csvlang).
+Documentation about csvlang commands can be found at [godoc.org](https://pkg.go.dev/github.com/Rishabh570/csvlang).
 
 ## Contents
 
@@ -81,19 +81,19 @@ save rows as output.json;
 ### Option 1: Using Go (Recommended)
 
 ```bash
-go install github.com/rishabh570/csvlang@latest
+go install github.com/Rishabh570/csvlang@latest
 ```
 
 ### Option 2: Binary Installation
 
-1. Download the latest binary for your platform from the [releases page](https://github.com/rishabh570/csvlang/releases).
+1. Download the latest binary for your platform from the [releases page](https://github.com/Rishabh570/csvlang/releases).
 2. Extract the archive.
 3. Add the binary to your PATH.
 
 ### Option 3: Build from Source
 
 ```bash
-git clone https://github.com/rishabh570/csvlang.git
+git clone https://github.com/Rishabh570/csvlang.git
 cd csvlang
 go build -o csvlang
 ```
@@ -104,7 +104,7 @@ go build -o csvlang
 1. Clone the project:
 
 ```bash
-git clone https://github.com/rishabh570/csvlang
+git clone https://github.com/Rishabh570/csvlang
 ```
 
 2. Change to the project directory:

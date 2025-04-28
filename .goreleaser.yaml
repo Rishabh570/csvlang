@@ -59,7 +59,7 @@ checksum:
 # prerelease: auto: Automatically determines if the release should be marked as a prerelease based on the version (e.g., versions with pre-release identifiers like v1.0.0-beta.1 will be marked as prereleases)
 release:
   github:
-    owner: rishabh570
+    owner: Rishabh570
     name: csvlang
   prerelease: auto
 
